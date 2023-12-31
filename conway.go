@@ -1,7 +1,16 @@
 package main
 
-import "fmt"
-import "maps"
+import (
+	"flag"
+	"fmt"
+	"log"
+	"maps"
+	"math/rand"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+)
 
 type Cell [2]int
 
@@ -12,8 +21,8 @@ type Grid struct {
 	size  [2]int
 }
 
-func neighbors(grid Grid, cell Cell) (total int) {
-	total = 0
+func neighbors(grid Grid, cell Cell) int {
+	total := 0
 	deltas := []Cell{
 		{-1, -1},
 		{-1, 0},
@@ -53,8 +62,8 @@ func neighbors(grid Grid, cell Cell) (total int) {
 	return total
 }
 
-func NextGen(grid Grid) (nextgen Grid) {
-	nextgen = Grid{make(CellSet), grid.size}
+func NextGen(grid Grid) Grid {
+	nextgen := Grid{make(CellSet), grid.size}
 
 	maps.Copy(nextgen.cells, grid.cells)
 
@@ -80,17 +89,142 @@ func NextGen(grid Grid) (nextgen Grid) {
 	return nextgen
 }
 
-func main() {
-	cells := CellSet{
-		Cell{1, 2}: true,
-		Cell{0, 2}: true,
-		Cell{2, 2}: true,
+func parseArgs() (string, bool) {
+	inputPathPtr := flag.String("input", "", "Path to input file.")
+	prettyPrintPtr := flag.Bool("print", false, "Print the grid using ascii characters.")
+
+	flag.Parse()
+
+	return *inputPathPtr, *prettyPrintPtr
+}
+
+func check(e error) {
+	if e != nil {
+		log.Fatal(e)
+	}
+}
+
+func checkStdin() bool {
+	fi, err := os.Stdin.Stat()
+	check(err)
+
+	if (fi.Mode() & os.ModeCharDevice) == 0 {
+		return true
+	} else {
+		return false
+	}
+}
+
+func getInput(path string) string {
+	const Bufsize = 1024 * 1
+	inputbuf := make([]byte, Bufsize)
+	var err error
+
+	if checkStdin() {
+		_, err = os.Stdin.Read(inputbuf)
+		check(err)
+	} else if len(path) > 0 {
+		inputbuf, err = os.ReadFile(path)
+		check(err)
+	} else {
+		return ""
 	}
 
-	grid := Grid{cells, [2]int{10, 10}}
+	return string(inputbuf)
+}
 
-	nextgen := NextGen(grid)
+func parseInput(input string) Grid {
+	cells := CellSet{}
+	var max int
 
-	fmt.Printf("Before: %+v\n", grid.cells)
-	fmt.Printf("After: %+v\n", nextgen.cells)
+	fields := strings.Split(input, ",")
+
+	re, err := regexp.Compile("[0-9]+")
+	check(err)
+
+	for _, v := range fields {
+		coords := re.FindAllString(v, -1)
+		if len(coords) == 2 {
+			x, err := strconv.Atoi(coords[0])
+			check(err)
+			y, err := strconv.Atoi(coords[1])
+			check(err)
+
+			if x > max || y > max {
+				if x >= y {
+					max = x
+				} else {
+					max = y
+				}
+			}
+
+			cells[Cell{x, y}] = true
+		}
+	}
+
+	return Grid{cells, [2]int{max + 1, max + 1}}
+}
+
+func printOutput(grid Grid) {
+	for k := range grid.cells {
+		fmt.Printf("%v %v,\n", k[0], k[1])
+	}
+}
+
+func printGrid(grid Grid) {
+	rows := grid.size[0]
+	cols := grid.size[1]
+
+	for x := 0; x < rows; x++ {
+		for y := 0; y < cols; y++ {
+			_, exists := grid.cells[Cell{x, y}]
+
+			if exists {
+				fmt.Printf("[X]")
+			} else {
+				fmt.Printf("[ ]")
+			}
+
+			if y == cols-1 {
+				fmt.Printf("\n")
+			}
+		}
+	}
+}
+
+func randomGrid() Grid {
+	const Size = 10
+	cells := CellSet{}
+
+	gridSize := [2]int{Size, Size}
+
+	cellAmount := rand.Intn(Size * Size)
+
+	for i := 0; i < cellAmount; i++ {
+		x := rand.Intn(Size)
+		y := rand.Intn(Size)
+		cells[Cell{x, y}] = true
+	}
+
+	return Grid{cells, gridSize}
+}
+
+func main() {
+	var grid Grid
+
+	file, print := parseArgs()
+	input := getInput(file)
+
+	if len(input) > 0 {
+		grid = parseInput(input)
+	} else {
+		grid = randomGrid()
+	}
+
+	if print {
+		printGrid(grid)
+	} else {
+		nextgen := NextGen(grid)
+		printOutput(nextgen)
+	}
 }
