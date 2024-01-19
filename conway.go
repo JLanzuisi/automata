@@ -89,13 +89,16 @@ func NextGen(grid Grid) Grid {
 	return nextgen
 }
 
-func parseArgs() (string, bool) {
+func parseArgs() (string, bool, string) {
+	//var ErrHelp = errors.New("flag: help requested")
+
 	inputPathPtr := flag.String("input", "", "Path to input file.")
+	outputPathPtr := flag.String("output", "", "Path to output file.")
 	prettyPrintPtr := flag.Bool("print", false, "Print the grid using ascii characters.")
 
 	flag.Parse()
 
-	return *inputPathPtr, *prettyPrintPtr
+	return *inputPathPtr, *prettyPrintPtr, *outputPathPtr
 }
 
 func check(e error) {
@@ -192,7 +195,7 @@ func printGrid(grid Grid) {
 	}
 }
 
-func randomGrid() Grid {
+func RandomGrid() Grid {
 	const Size = 10
 	cells := CellSet{}
 
@@ -209,22 +212,32 @@ func randomGrid() Grid {
 	return Grid{cells, gridSize}
 }
 
+func writeOutput(path string) {
+	//err := os.WriteFile()
+}
+
 func main() {
 	var grid Grid
+	var nextgen Grid
 
-	file, print := parseArgs()
-	input := getInput(file)
+	infile, print, outfile := parseArgs()
+	input := getInput(infile)
 
 	if len(input) > 0 {
 		grid = parseInput(input)
 	} else {
-		grid = randomGrid()
+		grid = RandomGrid()
 	}
 
 	if print {
 		printGrid(grid)
+		nextgen = grid
 	} else {
-		nextgen := NextGen(grid)
+		nextgen = NextGen(grid)
 		printOutput(nextgen)
+	}
+
+	if len(outfile) > 0 {
+		writeOutput(outfile)
 	}
 }
