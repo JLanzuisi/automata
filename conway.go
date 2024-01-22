@@ -1,29 +1,28 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"image"
+	"image/color"
+	"image/gif"
 	"log"
-	"maps"
-	"math/rand"
 	"os"
-	"regexp"
-	"strconv"
-	"strings"
 )
 
-type Cell [2]int
+type Grid [ROWS][COLUMNS]int
 
-type CellSet map[Cell]bool
+const (
+	ROWS        = 60
+	COLUMNS     = 60
+	GENERATIONS = 150
+	GFACTOR     = 10
+	GWIDTH      = ROWS * GFACTOR
+	GHEIGHT     = COLUMNS * GFACTOR
+	GDELAY      = 20
+)
 
-type Grid struct {
-	cells CellSet
-	size  [2]int
-}
-
-func neighbors(grid Grid, cell Cell) int {
+func neighbors(grid Grid, x int, y int) int {
 	total := 0
-	deltas := []Cell{
+	deltas := [][]int{
 		{-1, -1},
 		{-1, 0},
 		{-1, 1},
@@ -35,26 +34,23 @@ func neighbors(grid Grid, cell Cell) int {
 	}
 
 	for _, v := range deltas {
-		row := cell[0] + v[0]
-		col := cell[1] + v[1]
+		row := x + v[0]
+		col := y + v[1]
 
 		if row == -1 {
-			row = grid.size[0] - 1
+			row = ROWS - 1
 		}
-		if row == grid.size[0] {
+		if row == ROWS {
 			row = 0
 		}
 		if col == -1 {
-			col = grid.size[1] - 1
+			col = COLUMNS - 1
 		}
-		if col == grid.size[1] {
+		if col == COLUMNS {
 			col = 0
 		}
 
-		n := Cell{row, col}
-		exists := grid.cells[n]
-
-		if exists {
+		if grid[row][col] == 1 {
 			total++
 		}
 	}
@@ -63,24 +59,19 @@ func neighbors(grid Grid, cell Cell) int {
 }
 
 func NextGen(grid Grid) Grid {
-	nextgen := Grid{make(CellSet), grid.size}
+	nextgen := grid
 
-	maps.Copy(nextgen.cells, grid.cells)
+	for row := 0; row < ROWS; row++ {
+		for col := 0; col < COLUMNS; col++ {
+			count := neighbors(grid, row, col)
 
-	for row := 0; row < grid.size[0]; row++ {
-		for col := 0; col < grid.size[1]; col++ {
-			cell := Cell{row, col}
-			count := neighbors(grid, cell)
-
-			exists := grid.cells[cell]
-
-			if exists {
+			if grid[row][col] == 1 {
 				if count != 2 && count != 3 {
-					delete(nextgen.cells, cell)
+					nextgen[row][col] = 0
 				}
 			} else {
 				if count == 3 {
-					nextgen.cells[cell] = true
+					nextgen[row][col] = 1
 				}
 			}
 		}
@@ -89,155 +80,94 @@ func NextGen(grid Grid) Grid {
 	return nextgen
 }
 
-func parseArgs() (string, bool, string) {
-	//var ErrHelp = errors.New("flag: help requested")
+func encodeGIF(g Grid, path string) {
+	var colorIdx int
 
-	inputPathPtr := flag.String("input", "", "Path to input file.")
-	outputPathPtr := flag.String("output", "", "Path to output file.")
-	prettyPrintPtr := flag.Bool("print", false, "Print the grid using ascii characters.")
+	nextg := g
+	p := []color.Color{color.White, color.Black}
+	r := image.Rectangle{image.Point{0, 0}, image.Point{GWIDTH, GHEIGHT}}
 
-	flag.Parse()
+	anim := gif.GIF{LoopCount: -1}
 
-	return *inputPathPtr, *prettyPrintPtr, *outputPathPtr
-}
+	for i := 0; i < GENERATIONS; i++ {
+		im := image.NewPaletted(r, p)
 
-func check(e error) {
-	if e != nil {
-		log.Fatal(e)
-	}
-}
+		beg := image.Point{0, 0}
+		end := image.Point{0, 0}
 
-func checkStdin() bool {
-	fi, err := os.Stdin.Stat()
-	check(err)
+		for j := 0; j < ROWS; j++ {
+			beg.X = end.X
+			end.X = (j+1)*GFACTOR - 1
+			beg.Y = 0
+			end.Y = 0
+			for k := 0; k < COLUMNS; k++ {
+				beg.Y = end.Y
+				end.Y = (k+1)*GFACTOR - 1
 
-	if (fi.Mode() & os.ModeCharDevice) == 0 {
-		return true
-	} else {
-		return false
-	}
-}
-
-func getInput(path string) string {
-	const Bufsize = 1024 * 1
-	inputbuf := make([]byte, Bufsize)
-	var err error
-
-	if checkStdin() {
-		_, err = os.Stdin.Read(inputbuf)
-		check(err)
-	} else if len(path) > 0 {
-		inputbuf, err = os.ReadFile(path)
-		check(err)
-	} else {
-		return ""
-	}
-
-	return string(inputbuf)
-}
-
-func parseInput(input string) Grid {
-	cells := CellSet{}
-	var max int
-
-	fields := strings.Split(input, ",")
-
-	re, err := regexp.Compile("[0-9]+")
-	check(err)
-
-	for _, v := range fields {
-		coords := re.FindAllString(v, -1)
-		if len(coords) == 2 {
-			x, err := strconv.Atoi(coords[0])
-			check(err)
-			y, err := strconv.Atoi(coords[1])
-			check(err)
-
-			if x > max || y > max {
-				if x >= y {
-					max = x
+				if nextg[j][k] == 1 {
+					colorIdx = 1
 				} else {
-					max = y
+					colorIdx = 0
+				}
+
+				for l := beg.X; l < end.X; l++ {
+					for m := beg.Y; m < end.Y; m++ {
+						im.Set(m, l, p[colorIdx])
+					}
 				}
 			}
-
-			cells[Cell{x, y}] = true
 		}
+
+		anim.Delay = append(anim.Delay, GDELAY)
+		anim.Image = append(anim.Image, im)
+
+		nextg = NextGen(nextg)
 	}
 
-	return Grid{cells, [2]int{max + 1, max + 1}}
+	f, _ := os.Create(path)
+
+	defer f.Close()
+
+	gif.EncodeAll(f, &anim)
 }
 
-func printOutput(grid Grid) {
-	for k := range grid.cells {
-		fmt.Printf("%v %v,\n", k[0], k[1])
+func patternToGrid(p Pattern) (g Grid) {
+	missing := 0
+	rows := [2]int{0, 0}
+	cols := [2]int{0, 0}
+	prows := len(p)
+	pcols := len(p[0])
+
+	if prows < 1 || pcols < 1 {
+		log.Fatal("Invalid pattern.")
 	}
-}
 
-func printGrid(grid Grid) {
-	rows := grid.size[0]
-	cols := grid.size[1]
+	missing = ROWS - prows
+	rows[0] = missing / 2
+	rows[1] = missing - rows[0]
 
-	for x := 0; x < rows; x++ {
-		for y := 0; y < cols; y++ {
-			_, exists := grid.cells[Cell{x, y}]
+	missing = COLUMNS - pcols
+	cols[0] = missing / 2
+	cols[1] = missing - cols[0]
 
-			if exists {
-				fmt.Printf("[X]")
+	for i := 0; i < ROWS; i++ {
+		for j := 0; j < COLUMNS; j++ {
+			if i > rows[0]-1 && i < rows[0]+prows && j > cols[0]-1 && j < cols[0]+pcols {
+				g[i][j] = p[i-rows[0]][j-cols[0]]
 			} else {
-				fmt.Printf("[ ]")
-			}
-
-			if y == cols-1 {
-				fmt.Printf("\n")
+				g[i][j] = 0
 			}
 		}
 	}
-}
 
-func RandomGrid() Grid {
-	const Size = 10
-	cells := CellSet{}
-
-	gridSize := [2]int{Size, Size}
-
-	cellAmount := rand.Intn(Size * Size)
-
-	for i := 0; i < cellAmount; i++ {
-		x := rand.Intn(Size)
-		y := rand.Intn(Size)
-		cells[Cell{x, y}] = true
-	}
-
-	return Grid{cells, gridSize}
-}
-
-func writeOutput(path string) {
-	//err := os.WriteFile()
+	return g
 }
 
 func main() {
-	var grid Grid
-	var nextgen Grid
+	ex := CenturyExample()
 
-	infile, print, outfile := parseArgs()
-	input := getInput(infile)
+	path := ex.name + ".gif"
+	grid := patternToGrid(ex.p)
 
-	if len(input) > 0 {
-		grid = parseInput(input)
-	} else {
-		grid = RandomGrid()
-	}
-
-	if print {
-		printGrid(grid)
-		nextgen = grid
-	} else {
-		nextgen = NextGen(grid)
-		printOutput(nextgen)
-	}
-
-	if len(outfile) > 0 {
-		writeOutput(outfile)
-	}
+	encodeGIF(grid, path)
 }
