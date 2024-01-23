@@ -1,10 +1,46 @@
 package main
 
+import (
+	"log"
+)
+
 type Pattern [][]int
 
 type Example struct {
 	p    Pattern
 	name string
+}
+
+func PatternToGrid(p Pattern) (g Grid) {
+	missing := 0
+	rows := [2]int{0, 0}
+	cols := [2]int{0, 0}
+	prows := len(p)
+	pcols := len(p[0])
+
+	if prows < 1 || pcols < 1 {
+		log.Fatal("Invalid pattern.")
+	}
+
+	missing = ROWS - prows
+	rows[0] = missing / 2
+	rows[1] = missing - rows[0]
+
+	missing = COLUMNS - pcols
+	cols[0] = missing / 2
+	cols[1] = missing - cols[0]
+
+	for i := 0; i < ROWS; i++ {
+		for j := 0; j < COLUMNS; j++ {
+			if i > rows[0]-1 && i < rows[0]+prows && j > cols[0]-1 && j < cols[0]+pcols {
+				g[i][j] = p[i-rows[0]][j-cols[0]]
+			} else {
+				g[i][j] = 0
+			}
+		}
+	}
+
+	return g
 }
 
 func PlusExample() Example {
