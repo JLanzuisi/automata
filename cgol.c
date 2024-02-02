@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#define MSF_GIF_IMPL
+#include "msf_gif.h"
 
 typedef struct {
 	size_t rows;
@@ -18,8 +20,8 @@ typedef struct {
 void InitPattern (Pattern *p){
 	unsigned int init[] = {
 		0, 1, 0,
-		1, 1, 1,
-        0, 1, 0,
+		0, 0, 1,
+        1, 1, 1,
 	};
 
 	p->grid.rows = 3;
@@ -95,7 +97,8 @@ size_t Neighbors(Grid *g, size_t row, size_t col){
 }
 
 void NextGen(Grid *g){
-	unsigned int next[g->cols], buf[g->cols], count = 0;
+	unsigned int count = 0;
+	unsigned int nextgen[g->cols*g->rows];
 	
 	for (size_t i=0; i < g->rows; i++){
 		for (size_t j=0; j < g->cols; j++){
@@ -103,29 +106,20 @@ void NextGen(Grid *g){
 
 			if (g->grid[(i*g->cols)+j]) {
 				if (count != 2 && count != 3){
-					next[j] = 0;
+					nextgen[(i*g->cols)+j] = 0;
 				} else {
-					next[j] = 1;
+					nextgen[(i*g->cols)+j] = 1;
 				}
 			} else {
 				if (count == 3){
-					next[j] = 1;
+					nextgen[(i*g->cols)+j] = 1;
 				} else {
-					next[j] = 0;
+					nextgen[(i*g->cols)+j] = 0;
 				}
 			}
 		}
-
-		if (i) {
-          memcpy(&g->grid[(i-1)*g->cols], buf, sizeof(buf));
-		};
-
-		if (i == g->rows-1) {
-			memcpy(&g->grid[i*g->cols], next, sizeof(next));
-		} else {
-			memcpy(buf, next, sizeof(next));
-		}
 	}
+	memcpy(g->grid, nextgen, sizeof(nextgen));
 }
 
 int main(void){
@@ -136,14 +130,31 @@ int main(void){
 
 	InitGrid(&p, &g);
 
-    PrintGrid(&g);
-
-    while (true){
-      sleep(1);
 	NextGen(&g);
 
-    PrintGrid(&g);
-      }
+	int width = g.cols, height = g.rows, centisecondsPerFrame = 5, bitDepth = 16;
+	uint8_t image[] = {0};
+	MsfGifState gifState = {0};
+
+	/* for (size_t i = 0; i < g.rows*g.cols; i++){ */
+	/* 	if (g.grid[i] == 1){ */
+	/* 		image[i] = 255; */
+	/* 	} else { */
+	/* 		image[i] = 0; */
+	/* 	} */
+	/* }n */
+
+	msf_gif_begin(&gifState, width, height);
+	msf_gif_frame(&gifState, image, centisecondsPerFrame, bitDepth, width * 4); //frame 1
+	/* /\* msf_gif_frame(&gifState, ..., centisecondsPerFrame, bitDepth, width * 4); //frame 2 *\/ */
+	/* /\* msf_gif_frame(&gifState, ..., centisecondsPerFrame, bitDepth, width * 4); //frame 3, etc... *\/ */
+	MsfGifResult result = msf_gif_end(&gifState);
+	if (result.data) {
+		FILE * fp = fopen("MyGif.gif", "wb");
+		fwrite(result.data, result.dataSize, 1, fp);
+		fclose(fp);
+	}
+	msf_gif_free(result);
 
 	free(g.grid);
 	return 0;
