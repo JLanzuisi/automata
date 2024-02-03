@@ -6,22 +6,22 @@
 #include "gifenc.h"
 
 typedef struct {
-	size_t rows;
-	size_t cols;
+	int rows;
+	int cols;
 	bool grid[];
 } Grid;
 
-Grid *InitGrid (size_t rows, size_t cols, size_t offset, bool p[]){
-	size_t grows =  offset*2 + rows;
-	size_t gcols =  offset*2 + cols;
+Grid *InitGrid (int rows, int cols, int offset, bool p[]){
+	int grows =  offset*2 + rows;
+	int gcols =  offset*2 + cols;
 	
 	Grid *g = calloc(1, sizeof(Grid) + grows*gcols*sizeof(bool));
 
 	g->rows = grows;
 	g->cols = gcols;
 	
-	for (size_t i=0; i < g->rows; i++){
-		for (size_t j=0; j < g->cols; j++){
+	for (int i=0; i < g->rows; i++){
+		for (int j=0; j < g->cols; j++){
 			if (offset == 0) {
 				g->grid[i*g->cols + j] = p[i*cols + j];
 			} else if (j > offset-1 && j < g->cols-offset && i > offset-1 && i < g->rows-offset){
@@ -34,8 +34,8 @@ Grid *InitGrid (size_t rows, size_t cols, size_t offset, bool p[]){
 }
 
 void PrintGrid(Grid *g){
-  	for (size_t i=0; i < g->rows; i++){
-		for (size_t j=0; j < g->cols; j++){
+  	for (int i=0; i < g->rows; i++){
+		for (int j=0; j < g->cols; j++){
           if (g->grid[(i*g->cols)+j]) {
 			printf("* ");
           } else {
@@ -82,11 +82,11 @@ size_t Neighbors(Grid *g, size_t row, size_t col){
 }
 
 void NextGen(Grid *g){
-	unsigned int count = 0;
+	int count = 0;
 	bool nextgen[g->cols*g->rows];
 	
-	for (size_t i=0; i < g->rows; i++){
-		for (size_t j=0; j < g->cols; j++){
+	for (int i=0; i < g->rows; i++){
+		for (int j=0; j < g->cols; j++){
 			count = Neighbors(g, i, j);
 
 			if (g->grid[(i*g->cols)+j]) {
@@ -107,6 +107,46 @@ void NextGen(Grid *g){
 	memcpy(g->grid, nextgen, sizeof(nextgen));
 }
 
+void EncodeGif(int factor, int generations, char *filename, Grid *g){
+	int w = g->rows*factor, h = g->cols*factor;
+	int pindex = 0;
+	
+    ge_GIF *gif = ge_new_gif(
+        filename,  /* file name */
+        w, h,           /* canvas size */
+        (uint8_t []) {  /* palette */
+            0, 0, 0,
+            255, 255, 255,
+        },
+        1,              /* palette depth == log2(# of colors) */
+        -1,             /* no transparency */
+        0               /* infinite loop */
+		);
+	
+	for (int i = 0; i < generations; i++) {
+		NextGen(g);
+		
+		for (int j = 0; j < g->rows; j++) {
+			for (int k = 0; k < g->cols; k++) {
+				if (g->grid[j*g->cols + k] == 1) {
+					pindex = 0;
+				} else {
+					pindex = 1;
+				}
+				for (int l = j*factor; l < (j+1)*factor; l++) {
+					for (int m = k*factor; m < (k+1)*factor; m++) {
+						gif->frame[l*w + m] = pindex;
+					}
+				}
+			}
+		}
+		
+		ge_add_frame(gif, 10);
+	}
+
+    ge_close_gif(gif);
+}
+
 int main(void){
 	Grid *g = InitGrid(
 		3,3,10,
@@ -117,43 +157,7 @@ int main(void){
 		}
 		);
 
-	/* create a GIF */
-	int w = g->rows*100, h = g->cols*100;
-    ge_GIF *gif = ge_new_gif(
-        "example.gif",  /* file name */
-        w, h,           /* canvas size */
-        (uint8_t []) {  /* palette */
-            0, 0, 0,
-            255, 255, 255,
-        },
-        1,              /* palette depth == log2(# of colors) */
-        -1,             /* no transparency */
-        0               /* infinite loop */
-		);
-    /* /\* /\\* draw some frames *\\/ *\/ */
-	for (int i = 0; i < 100; i++) {
-		NextGen(g);
-		for (int j = 0; j < g->rows; j++) {
-			for (int k = 0; k < g->cols; k++) {
-				if (g->grid[j*g->cols + k] == 1) {
-					for (int l = j*100; l < (j+1)*100; l++) {
-						for (int m = k*100; m < (k+1)*100; m++) {
-							gif->frame[l*w + m] = 1;
-						}
-					}
-				} else {
-					for (int l = j*100; l < (j+1)*100; l++) {
-						for (int m = k*100; m < (k+1)*100; m++) {
-							gif->frame[l*w + m] = 0;
-						}
-					}
-				}
-			}
-		}
-		ge_add_frame(gif, 10);
-	}
-    /* /\* /\\* remember to close the GIF *\\/ *\/ */
-    ge_close_gif(gif);
+	EncodeGif(25, 150, "test.gif", g);
 
 	free(g);
 	return 0;
