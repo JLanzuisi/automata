@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include <errno.h>
 #include "gifenc.h"
 
 typedef struct {
@@ -16,6 +17,9 @@ Grid *InitGrid (int rows, int cols, int offset, bool p[]){
 	int gcols =  offset*2 + cols;
 	
 	Grid *g = calloc(1, sizeof(Grid) + grows*gcols*sizeof(bool));
+	if (g == NULL) {
+		goto end;
+	}
 
 	g->rows = grows;
 	g->cols = gcols;
@@ -30,6 +34,7 @@ Grid *InitGrid (int rows, int cols, int offset, bool p[]){
 		}
 	}
 
+end:
 	return g;
 }
 
@@ -122,6 +127,11 @@ void EncodeGif(int factor, int generations, char *filename, Grid *g){
         -1,             /* no transparency */
         0               /* infinite loop */
 		);
+
+	if (gif == NULL) {
+		perror("Error generating gif");
+		goto end;
+	}
 	
 	for (int i = 0; i < generations; i++) {
 		NextGen(g);
@@ -141,23 +151,67 @@ void EncodeGif(int factor, int generations, char *filename, Grid *g){
 			}
 		}
 		
-		ge_add_frame(gif, 10);
+		ge_add_frame(gif, 30);
 	}
 
+end:
     ge_close_gif(gif);
 }
 
-int main(void){
-	Grid *g = InitGrid(
-		3,3,10,
-		(bool[]){
-			0, 1, 0,
-			0, 0, 1,
-			1, 1, 1,
-		}
-		);
+Grid* RandomGrid(int rows, int cols, int offset){
+	bool pattern[] = {0};
+	
+	for (int i=0; i<rows*cols; i++){
+		pattern[i] = 1;
+	}
+	
+	Grid *g = InitGrid(rows, cols, offset, pattern);
+	PrintGrid(g);
+}
 
-	EncodeGif(25, 150, "test.gif", g);
+int main(int argc, char *argv[]){
+	FILE * rle;
+	char *filename = "test.txt";
+	rle = fopen (filename, "r");
+	if (rle == NULL) {
+		fprintf(stderr, "File error on '%s': %s.", filename, strerror(errno));
+		return 1;
+	}
+	
+	while (argc > 1){
+		if (strcmp(argv[1], "file") == 0) {
+			break;
+		} else {
+			fprintf(stderr, "Subcommand '%s' unknown.\n", argv[1]);
+			return 1;
+		}
+	}
+
+	fclose(rle);
+
+	Grid *g = RandomGrid(5, 5, 1);
+	/* Grid *g = InitGrid( */
+	/* 	9,14,10, */
+	/* 	(bool[]){ */
+	/* 		0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, */
+	/* 		1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, */
+	/* 		1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, */
+	/* 		0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, */
+	/* 		1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, */
+	/* 		0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, */
+	/* 		0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, */
+	/* 		0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, */
+	/* 		0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, */
+	/* 	} */
+	/* 	); */
+	if (g == NULL) {
+		perror("Error generating Grid");
+		return 1;
+	}
+
+	PrintGrid(g);
+
+	//EncodeGif(25, 150, "test.gif", g);
 
 	free(g);
 	return 0;
