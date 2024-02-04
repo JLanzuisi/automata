@@ -159,14 +159,15 @@ end:
 }
 
 Grid* RandomGrid(int rows, int cols, int offset){
-	bool pattern[] = {0};
+	bool pattern[rows*cols];
+
+	srand(time(NULL));
 	
 	for (int i=0; i<rows*cols; i++){
-		pattern[i] = 1;
+		pattern[i] = rand()%2;
 	}
 	
-	Grid *g = InitGrid(rows, cols, offset, pattern);
-	PrintGrid(g);
+	return InitGrid(rows, cols, offset, pattern);
 }
 
 int main(int argc, char *argv[]){
@@ -189,29 +190,14 @@ int main(int argc, char *argv[]){
 
 	fclose(rle);
 
-	Grid *g = RandomGrid(5, 5, 1);
-	/* Grid *g = InitGrid( */
-	/* 	9,14,10, */
-	/* 	(bool[]){ */
-	/* 		0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, */
-	/* 		1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, */
-	/* 		1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, */
-	/* 		0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, */
-	/* 		1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, */
-	/* 		0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, */
-	/* 		0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, */
-	/* 		0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, */
-	/* 		0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, */
-	/* 	} */
-	/* 	); */
+	Grid *g = RandomGrid(10, 10, 10);
+	
 	if (g == NULL) {
 		perror("Error generating Grid");
 		return 1;
 	}
 
-	PrintGrid(g);
-
-	//EncodeGif(25, 150, "test.gif", g);
+	EncodeGif(25, 150, "test.gif", g);
 
 	free(g);
 	return 0;
