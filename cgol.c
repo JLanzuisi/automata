@@ -6,6 +6,11 @@
 #include <errno.h>
 #include "gifenc.h"
 
+#define INDEX(a, columns, i, j) ((a)[(i) * (columns) + (j)])
+#define INDEX_G(g, i, j) INDEX(g->grid, g->cols, i, j)
+
+#define PALLETE_SIZE 8
+
 typedef struct {
 	int rows;
 	int cols;
@@ -27,9 +32,9 @@ Grid *InitGrid (int rows, int cols, int offset, bool p[]){
 	for (int i=0; i < g->rows; i++){
 		for (int j=0; j < g->cols; j++){
 			if (offset == 0) {
-				g->grid[i*g->cols + j] = p[i*cols + j];
+				INDEX_G(g, i, j) = INDEX(p, cols, i, j);
 			} else if (j > offset-1 && j < g->cols-offset && i > offset-1 && i < g->rows-offset){
-				g->grid[i*g->cols + j] = p[(i - offset)*cols + (j - offset)];
+				INDEX_G(g, i, j) = INDEX(p, cols, i-offset, j-offset);
 			}
 		}
 	}
@@ -41,7 +46,7 @@ end:
 void PrintGrid(Grid *g){
   	for (int i=0; i < g->rows; i++){
 		for (int j=0; j < g->cols; j++){
-          if (g->grid[(i*g->cols)+j]) {
+			if (INDEX_G(g, i, j)) {
 			printf("* ");
           } else {
             printf(". ");
@@ -81,7 +86,7 @@ size_t Neighbors(Grid *g, size_t row, size_t col){
 				y = 0;
 			};
 
-			if (g->grid[(x*g->cols)+y]) total++;
+			if (INDEX_G(g, x, y)) total++;
 	}
     return total;
 }
@@ -94,17 +99,17 @@ void NextGen(Grid *g){
 		for (int j=0; j < g->cols; j++){
 			count = Neighbors(g, i, j);
 
-			if (g->grid[(i*g->cols)+j]) {
+			if (INDEX_G(g, i, j)) {
 				if (count != 2 && count != 3){
-					nextgen[(i*g->cols)+j] = 0;
+					INDEX(nextgen, g->cols, i, j) = 0;
 				} else {
-					nextgen[(i*g->cols)+j] = 1;
+					INDEX(nextgen, g->cols, i, j) = 1;
 				}
 			} else {
 				if (count == 3){
-					nextgen[(i*g->cols)+j] = 1;
+					INDEX(nextgen, g->cols, i, j) = 1;
 				} else {
-					nextgen[(i*g->cols)+j] = 0;
+					INDEX(nextgen, g->cols, i, j) = 0;
 				}
 			}
 		}
@@ -114,16 +119,30 @@ void NextGen(Grid *g){
 
 void EncodeGif(int factor, int generations, char *filename, Grid *g){
 	int w = g->rows*factor, h = g->cols*factor;
-	int pindex = 0;
+	int pindex = 0, depth = 3, count = 0;
+	float color_factor = 0.7f;
+
+	uint8_t palette[PALLETE_SIZE*3] = {0};
+	uint8_t init_color[3] = {107,102,255};
+	uint8_t bg_color[3] = {178, 190, 181};
+
+	palette[0] = bg_color[0];
+	palette[1] = bg_color[1];
+	palette[2] = bg_color[2];
+	palette[3] = init_color[0];
+	palette[4] = init_color[1];
+	palette[5] = init_color[2];
+	for (int i=2; i<PALLETE_SIZE; i++){
+		palette[i*3] = palette[(i*3)-3] * color_factor;
+		palette[i*3+1] = palette[(i*3)-2] * color_factor;
+		palette[i*3+2] = palette[(i*3)-1] * color_factor;
+	}
 	
     ge_GIF *gif = ge_new_gif(
         filename,  /* file name */
         w, h,           /* canvas size */
-        (uint8_t []) {  /* palette */
-            0, 0, 0,
-            255, 255, 255,
-        },
-        1,              /* palette depth == log2(# of colors) */
+		palette,
+        depth,              /* palette depth == log2(# of colors) */
         -1,             /* no transparency */
         0               /* infinite loop */
 		);
@@ -132,26 +151,31 @@ void EncodeGif(int factor, int generations, char *filename, Grid *g){
 		perror("Error generating gif");
 		goto end;
 	}
-	
+
 	for (int i = 0; i < generations; i++) {
 		NextGen(g);
 		
 		for (int j = 0; j < g->rows; j++) {
 			for (int k = 0; k < g->cols; k++) {
 				if (g->grid[j*g->cols + k] == 1) {
-					pindex = 0;
+					count = Neighbors(g,j,k);
+					if ( count == 0 ) {
+						pindex = 1;
+					} else {
+						pindex = count-1;
+					}
 				} else {
-					pindex = 1;
+					pindex = 0;
 				}
 				for (int l = j*factor; l < (j+1)*factor; l++) {
 					for (int m = k*factor; m < (k+1)*factor; m++) {
-						gif->frame[l*w + m] = pindex;
+						INDEX(gif->frame, w, l, m) = pindex;
 					}
 				}
 			}
 		}
 		
-		ge_add_frame(gif, 30);
+		ge_add_frame(gif, 20);
 	}
 
 end:
@@ -191,13 +215,21 @@ int main(int argc, char *argv[]){
 	fclose(rle);
 
 	Grid *g = RandomGrid(10, 10, 10);
+	/* Grid *g = InitGrid( */
+	/* 	3, 3, 10, */
+	/* 	(bool[]){ */
+	/* 		0, 1, 0, */
+	/* 		0, 0, 1, */
+	/* 		1, 1, 1, */
+	/* 	} */
+	/* 	); */
 	
 	if (g == NULL) {
 		perror("Error generating Grid");
 		return 1;
 	}
 
-	EncodeGif(25, 150, "test.gif", g);
+	EncodeGif(25, 300, "test.gif", g);
 
 	free(g);
 	return 0;
