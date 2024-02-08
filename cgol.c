@@ -129,14 +129,12 @@ void PrintGrid(Grid *g, int generations){
 	}
 }
 
-void EncodeGif(int factor, int generations, char *filename, Grid *g){
+void EncodeGif(uint8_t init_color[], uint8_t bg_color[], int factor, int generations, char *filename, Grid *g){
 	int w = g->rows*factor, h = g->cols*factor;
 	int pindex = 0, depth = 3, count = 0;
 	float color_factor = 0.7f;
 
 	uint8_t palette[PALLETE_SIZE*3] = {0};
-	uint8_t init_color[3] = {107,102,255};
-	uint8_t bg_color[3] = {178, 190, 181};
 
 	palette[0] = bg_color[0];
 	palette[1] = bg_color[1];
@@ -241,7 +239,9 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	EncodeGif(25, 300, "test.gif", g);
+    uint8_t init_color[3] = {107, 102, 255};
+	uint8_t bg_color[3] = {178, 190, 181};
+	EncodeGif(init_color, bg_color, 25, 300, "test.gif", g);
 	//PrintGrid(g, 25);
 
 	free(g);
