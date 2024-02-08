@@ -43,20 +43,6 @@ end:
 	return g;
 }
 
-void PrintGrid(Grid *g){
-  	for (int i=0; i < g->rows; i++){
-		for (int j=0; j < g->cols; j++){
-			if (INDEX_G(g, i, j)) {
-			printf("* ");
-          } else {
-            printf(". ");
-          }
-		}
-		printf("\n");
-	}
-    printf("\n");
-}
-
 size_t Neighbors(Grid *g, size_t row, size_t col){
 	size_t total = 0;
 	int x, y;
@@ -115,6 +101,32 @@ void NextGen(Grid *g){
 		}
 	}
 	memcpy(g->grid, nextgen, sizeof(nextgen));
+}
+
+void PrintGrid(Grid *g, int generations){
+	char chars[9] = {'.', '\'', ';', '-', '=', '+', '%', '#', '@'};
+	int count = 0;
+	
+	for (int k=0; k<generations; k++) {
+		NextGen(g);
+		
+		for (int i=0; i < g->rows; i++){
+			for (int j=0; j < g->cols; j++){
+				if (INDEX_G(g, i, j)) {
+					count = Neighbors(g, i, j);
+					printf("%c ", chars[count]);
+				} else {
+					printf("  ");
+				}
+			}
+			printf("\n");
+		}
+		
+		for (int j=0; j < g->cols; j++){
+			printf("- ");
+		}
+		printf("\n");
+	}
 }
 
 void EncodeGif(int factor, int generations, char *filename, Grid *g){
@@ -230,6 +242,7 @@ int main(int argc, char *argv[]){
 	}
 
 	EncodeGif(25, 300, "test.gif", g);
+	//PrintGrid(g, 25);
 
 	free(g);
 	return 0;
