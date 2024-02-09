@@ -11,6 +11,7 @@
 
 #define INDEX(a, columns, i, j) ((a)[(i) * (columns) + (j)])
 #define INDEX_G(g, i, j) INDEX(g->grid, g->cols, i, j)
+#define SIZE_OF(a) sizeof(a) / sizeof(a[0])
 
 #define PALLETE_SIZE 8
 
@@ -19,6 +20,10 @@ typedef struct {
     int cols;
     bool grid[];
 } Grid;
+
+typedef struct {
+    char *p_path;
+} CmdArgs;
 
 Grid *InitGrid(int rows, int cols, int offset, bool p[]) {
     int grows = offset * 2 + rows;
@@ -47,7 +52,7 @@ end:
     return g;
 }
 
-size_t Neighbors(Grid *g, size_t row, size_t col) {
+size_t neighbors(Grid *g, size_t row, size_t col) {
     size_t total = 0;
     int x, y;
     int deltas[8][2] = {
@@ -75,13 +80,13 @@ size_t Neighbors(Grid *g, size_t row, size_t col) {
     return total;
 }
 
-void NextGen(Grid *g) {
+void next_gen(Grid *g) {
     int count = 0;
     bool nextgen[g->cols * g->rows];
 
     for (int i = 0; i < g->rows; i++) {
         for (int j = 0; j < g->cols; j++) {
-            count = Neighbors(g, i, j);
+            count = neighbors(g, i, j);
 
             if (INDEX_G(g, i, j)) {
                 if (count != 2 && count != 3) {
@@ -106,12 +111,12 @@ void PrintGrid(Grid *g, int generations) {
     int count = 0;
 
     for (int k = 0; k < generations; k++) {
-        NextGen(g);
+        next_gen(g);
 
         for (int i = 0; i < g->rows; i++) {
             for (int j = 0; j < g->cols; j++) {
                 if (INDEX_G(g, i, j)) {
-                    count = Neighbors(g, i, j);
+                    count = neighbors(g, i, j);
                     printf("%c ", chars[count]);
                 } else {
                     printf("  ");
@@ -161,12 +166,12 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], int factor,
     }
 
     for (int i = 0; i < generations; i++) {
-        NextGen(g);
+        next_gen(g);
 
         for (int j = 0; j < g->rows; j++) {
             for (int k = 0; k < g->cols; k++) {
                 if (g->grid[j * g->cols + k] == 1) {
-                    count = Neighbors(g, j, k);
+                    count = neighbors(g, j, k);
                     if (count == 0) {
                         pindex = 1;
                     } else {
@@ -202,26 +207,55 @@ Grid *RandomGrid(int rows, int cols, int offset) {
     return InitGrid(rows, cols, offset, pattern);
 }
 
-int main(int argc, char *argv[]) {
-    FILE *rle;
-    char *filename = "test.txt";
-    rle = fopen(filename, "r");
-    if (rle == NULL) {
-        fprintf(stderr, "File error on '%s': %s.", filename, strerror(errno));
-        return 1;
+void pop_arg(int *argc, char *argv[]) {
+    if (*argc > 0) {
+        for (int i = 1; i < *argc; i++) {
+            argv[i - 1] = argv[i];
+        }
+        argv[*argc - 1] = "";
+        *argc = *argc - 1;
     }
+}
 
-    while (argc > 1) {
-        if (strcmp(argv[1], "file") == 0) {
+CmdArgs *ParseArgs(int *argc, char *argv[]) {
+    CmdArgs *args = malloc(sizeof(CmdArgs));
+    if (args == NULL) {
+        goto end;
+    };
+    // FILE *rle;
+    // char *filene = "test.txt";
+
+    // rle = fopen(filename, "r");
+    // if (rle == NULL) {
+    //     fprintf(stderr, "File error on '%s': %s.", filename,
+    //     strerror(errno)); exit(1);
+    // }
+
+    pop_arg(argc, argv);
+    while (*argc > 0) {
+        if (strcmp(argv[0], "set-pattern") == 0) {
+            pop_arg(argc, argv);
+            if (*argc > 0) {
+                args->p_path = calloc(strlen(argv[0]), sizeof(char));
+                strcpy(args->p_path, argv[0]);
+            } else {
+                fprintf(stderr, "No path provided to 'set-pattern'.\n");
+                exit(1);
+            }
             break;
         } else {
-            fprintf(stderr, "Subcommand '%s' unknown.\n", argv[1]);
-            return 1;
+            fprintf(stderr, "Subcommand '%s' unknown.\n", argv[0]);
+            exit(1);
         }
     }
 
-    fclose(rle);
+    // fclose(rle);
+end:
+    return args;
+}
 
+int main(int argc, char *argv[]) {
+    CmdArgs *args = ParseArgs(&argc, argv);
     Grid *g = RandomGrid(10, 10, 10);
     /* Grid *g = InitGrid( */
     /* 	3, 3, 10, */
@@ -243,6 +277,7 @@ int main(int argc, char *argv[]) {
     // PrintGrid(g, 25);
 
     free(g);
+    free(args);
     return 0;
 }
 // LICENSE
