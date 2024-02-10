@@ -16,8 +16,8 @@
 #define PALLETE_SIZE 8
 
 typedef struct {
-    int rows;
-    int cols;
+    unsigned int rows;
+    unsigned int cols;
     bool grid[];
 } Grid;
 
@@ -25,9 +25,10 @@ typedef struct {
     char *p_path;
 } CmdArgs;
 
-Grid *InitGrid(int rows, int cols, int offset, bool p[]) {
-    int grows = offset * 2 + rows;
-    int gcols = offset * 2 + cols;
+Grid *InitGrid(unsigned int rows, unsigned int cols, unsigned int offset,
+               bool p[]) {
+    unsigned int grows = offset * 2 + rows;
+    unsigned int gcols = offset * 2 + cols;
 
     Grid *g = calloc(1, sizeof(Grid) + grows * gcols * sizeof(bool));
     if (g == NULL) {
@@ -37,8 +38,8 @@ Grid *InitGrid(int rows, int cols, int offset, bool p[]) {
     g->rows = grows;
     g->cols = gcols;
 
-    for (int i = 0; i < g->rows; i++) {
-        for (int j = 0; j < g->cols; j++) {
+    for (unsigned int i = 0; i < g->rows; i++) {
+        for (unsigned int j = 0; j < g->cols; j++) {
             if (offset == 0) {
                 INDEX_G(g, i, j) = INDEX(p, cols, i, j);
             } else if (j > offset - 1 && j < g->cols - offset &&
@@ -54,12 +55,12 @@ end:
 
 size_t neighbors(Grid *g, size_t row, size_t col) {
     size_t total = 0;
-    int x, y;
+    signed int x, y;
     int deltas[8][2] = {
         {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1},
     };
 
-    for (size_t i = 0; i < 8; i++) {
+    for (unsigned int i = 0; i < 8; i++) {
         x = row + deltas[i][0];
         y = col + deltas[i][1];
 
@@ -74,18 +75,19 @@ size_t neighbors(Grid *g, size_t row, size_t col) {
             y = 0;
         };
 
-        if (INDEX_G(g, x, y))
+        if (INDEX_G(g, x, y)) {
             total++;
+        }
     }
     return total;
 }
 
 void next_gen(Grid *g) {
-    int count = 0;
+    unsigned int count = 0;
     bool nextgen[g->cols * g->rows];
 
-    for (int i = 0; i < g->rows; i++) {
-        for (int j = 0; j < g->cols; j++) {
+    for (unsigned int i = 0; i < g->rows; i++) {
+        for (unsigned int j = 0; j < g->cols; j++) {
             count = neighbors(g, i, j);
 
             if (INDEX_G(g, i, j)) {
@@ -106,15 +108,15 @@ void next_gen(Grid *g) {
     memcpy(g->grid, nextgen, sizeof(nextgen));
 }
 
-void PrintGrid(Grid *g, int generations) {
+void PrintGrid(Grid *g, unsigned int generations) {
     char chars[9] = {'.', '\'', ';', '-', '=', '+', '%', '#', '@'};
-    int count = 0;
+    unsigned int count = 0;
 
-    for (int k = 0; k < generations; k++) {
+    for (unsigned int k = 0; k < generations; k++) {
         next_gen(g);
 
-        for (int i = 0; i < g->rows; i++) {
-            for (int j = 0; j < g->cols; j++) {
+        for (unsigned int i = 0; i < g->rows; i++) {
+            for (unsigned int j = 0; j < g->cols; j++) {
                 if (INDEX_G(g, i, j)) {
                     count = neighbors(g, i, j);
                     printf("%c ", chars[count]);
@@ -125,17 +127,20 @@ void PrintGrid(Grid *g, int generations) {
             printf("\n");
         }
 
-        for (int j = 0; j < g->cols; j++) {
+        for (unsigned int j = 0; j < g->cols; j++) {
             printf("- ");
         }
         printf("\n");
     }
 }
 
-void EncodeGif(uint8_t init_color[], uint8_t bg_color[], int factor,
-               int generations, char *filename, Grid *g) {
-    int w = g->rows * factor, h = g->cols * factor;
-    int pindex = 0, depth = 3, count = 0;
+void EncodeGif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
+               unsigned int generations, char *filename, Grid *g) {
+    unsigned int w = g->rows * factor;
+    unsigned int h = g->cols * factor;
+    unsigned int pindex = 0;
+    unsigned int depth = 3;
+    unsigned int count = 0;
     float color_factor = 0.7f;
 
     uint8_t palette[PALLETE_SIZE * 3] = {0};
@@ -165,11 +170,11 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], int factor,
         goto end;
     }
 
-    for (int i = 0; i < generations; i++) {
+    for (unsigned int i = 0; i < generations; i++) {
         next_gen(g);
 
-        for (int j = 0; j < g->rows; j++) {
-            for (int k = 0; k < g->cols; k++) {
+        for (unsigned int j = 0; j < g->rows; j++) {
+            for (unsigned int k = 0; k < g->cols; k++) {
                 if (g->grid[j * g->cols + k] == 1) {
                     count = neighbors(g, j, k);
                     if (count == 0) {
@@ -180,8 +185,9 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], int factor,
                 } else {
                     pindex = 0;
                 }
-                for (int l = j * factor; l < (j + 1) * factor; l++) {
-                    for (int m = k * factor; m < (k + 1) * factor; m++) {
+                for (unsigned int l = j * factor; l < (j + 1) * factor; l++) {
+                    for (unsigned int m = k * factor; m < (k + 1) * factor;
+                         m++) {
                         INDEX(gif->frame, w, l, m) = pindex;
                     }
                 }
@@ -195,12 +201,12 @@ end:
     ge_close_gif(gif);
 }
 
-Grid *RandomGrid(int rows, int cols, int offset) {
+Grid *RandomGrid(unsigned int rows, unsigned int cols, unsigned int offset) {
     bool pattern[rows * cols];
 
     srand(time(NULL));
 
-    for (int i = 0; i < rows * cols; i++) {
+    for (unsigned int i = 0; i < rows * cols; i++) {
         pattern[i] = rand() % 2;
     }
 
@@ -268,7 +274,7 @@ int main(int argc, char *argv[]) {
 
     if (g == NULL) {
         perror("Error generating Grid");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     uint8_t init_color[3] = {107, 102, 255};
@@ -278,7 +284,7 @@ int main(int argc, char *argv[]) {
 
     free(g);
     free(args);
-    return 0;
+    return EXIT_SUCCESS;
 }
 // LICENSE
 // Permission is hereby granted, free of charge, to any person obtaining a copy
