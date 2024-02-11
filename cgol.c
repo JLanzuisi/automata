@@ -9,11 +9,12 @@
 #include <string.h>
 #include <time.h>
 
-#define BOARD_COLS 100
+#define BOARD_SIZE 100 // Actual 2d matrix size is the square of this
 #define PATH_SIZE 256
+#define LINE_SIZE 80
 #define PALLETE_SIZE 8
 
-typedef bool Board[BOARD_COLS][BOARD_COLS];
+typedef bool Board[BOARD_SIZE][BOARD_SIZE];
 
 typedef struct {
     unsigned int rows;
@@ -238,15 +239,6 @@ void pop_arg(int *argc, char *argv[]) {
 CmdArgs ParseArgs(int *argc, char *argv[]) {
     CmdArgs args = {0};
 
-    // FILE *rle;
-    // char *filene = "test.txt";
-
-    // rle = fopen(filename, "r");
-    // if (rle == NULL) {
-    //     fprintf(stderr, "File error on '%s': %s.", filename,
-    //     strerror(errno)); exit(1);
-    // }
-
     pop_arg(argc, argv);
     while (*argc > 0) {
         if (strcmp(argv[0], "set-pattern") == 0) {
@@ -270,23 +262,48 @@ CmdArgs ParseArgs(int *argc, char *argv[]) {
         }
     }
 
-    // fclose(rle);
     return args;
+}
+
+Grid ImportRle(char path[PATH_SIZE]) {
+    FILE *rle;
+    char line[LINE_SIZE];
+
+    rle = fopen(path, "r");
+    if (rle == NULL) {
+        fprintf(stderr, "File error on '%s': %s.", path, strerror(errno));
+        exit(1);
+    }
+
+    while (fgets(line, LINE_SIZE, rle)) {
+        if (line[0] != '#') {
+            printf("%s", line);
+        }
+    }
+
+    fclose(rle);
+
+    // return InitGrid(rows, cols, offset, pattern);
 }
 
 int main(int argc, char *argv[]) {
     CmdArgs args = ParseArgs(&argc, argv);
-    Grid g = RandomGrid(10, 10, 10);
-    // Grid g = InitGrid(3, 3, 10,
-    //                   (bool[][BOARD_COLS]){
-    //                       {0, 1, 0},
-    //                       {0, 0, 1},
-    //                       {1, 1, 1},
-    //                   });
 
-    uint8_t init_color[3] = {107, 102, 255};
-    uint8_t bg_color[3] = {178, 190, 181};
-    EncodeGif(init_color, bg_color, 25, 300, "test.gif", &g);
+    if (strlen(args.p_path) > 0) {
+        Grid g = ImportRle(args.p_path);
+    } else {
+        Grid g = RandomGrid(10, 10, 10);
+    }
+    //  Grid g = InitGrid(3, 3, 10,
+    //                    (bool[][BOARD_SIZE]){
+    //                        {0, 1, 0},
+    //                        {0, 0, 1},
+    //                        {1, 1, 1},
+    //                    });
+
+    /* uint8_t init_color[3] = {107, 102, 255}; */
+    /* uint8_t bg_color[3] = {178, 190, 181}; */
+    /* EncodeGif(init_color, bg_color, 25, 300, "test.gif", &g); */
     // PrintGrid(&g, 25);
 
     return EXIT_SUCCESS;
