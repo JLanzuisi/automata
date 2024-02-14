@@ -2,19 +2,20 @@
 // Copyright 2024 Jhonny Lanzuisi.
 // See LICENSE at end of file.
 #include "gifenc.h"
-#include <errno.h>
-#include <stdbool.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#define BOARD_SIZE 100 // Actual 2d matrix size is the square of this
+#define BOARD_SIZE 100 // 2d matrix size is the square of this
 #define PATH_SIZE 256
 #define LINE_SIZE 80
 #define PALLETE_SIZE 8
+#define ALIVE 1
+#define DEAD 0
 
-typedef bool Board[BOARD_SIZE][BOARD_SIZE];
+typedef int Board[BOARD_SIZE][BOARD_SIZE];
 
 typedef struct {
     unsigned int rows;
@@ -38,7 +39,7 @@ Grid InitGrid(unsigned int rows, unsigned int cols, unsigned int offset,
                        i > offset - 1 && i < g.rows - offset) {
                 g.grid[i][j] = p[i - offset][j - offset];
             } else {
-                g.grid[i][j] = 0;
+                g.grid[i][j] = DEAD;
             }
         }
     }
@@ -98,15 +99,15 @@ void next_gen(Grid *g) {
 
             if (g->grid[i][j]) {
                 if (count != 2 && count != 3) {
-                    nextgen[i][j] = 0;
+                    nextgen[i][j] = DEAD;
                 } else {
-                    nextgen[i][j] = 1;
+                    nextgen[i][j] = ALIVE;
                 }
             } else {
                 if (count == 3) {
-                    nextgen[i][j] = 1;
+                    nextgen[i][j] = ALIVE;
                 } else {
-                    nextgen[i][j] = 0;
+                    nextgen[i][j] = DEAD;
                 }
             }
         }
@@ -249,35 +250,65 @@ CmdArgs ParseArgs(int *argc, char *argv[]) {
                 } else {
                     fprintf(stderr,
                             "Path provided to 'set-pattern' is too long.\n");
-                    exit(EXIT_FAILURE);
+                    exit(1);
                 }
             } else {
                 fprintf(stderr, "No path provided to 'set-pattern'.\n");
-                exit(EXIT_FAILURE);
+                exit(1);
             }
             break;
         } else {
             fprintf(stderr, "Subcommand '%s' unknown.\n", argv[0]);
-            exit(EXIT_FAILURE);
+            exit(1);
         }
     }
 
     return args;
 }
 
+void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
+                  char line[LINE_SIZE]) {
+    unsigned int count = 0;
+    unsigned int saved_idx = 0;
+
+    if (line[*idx] == c) {
+        count = *idx;
+        while (line[*idx] != ',') {
+            (*idx)++;
+            if (isdigit(line[*idx]) != 0) {
+                saved_idx++;
+                saved[saved_idx] = line[*idx];
+                // printf("s:[%c], l:[%c]\n", saved[saved_idx], line[*idx]);
+                // printf("saved: [%s] | line:[%s]\n", saved, line);
+                // printf("idx:%d, count:%d\n", *idx, count);
+            }
+        }
+    }
+}
+
 Grid ImportRle(char path[PATH_SIZE]) {
     FILE *rle;
-    char line[LINE_SIZE];
+    char line[LINE_SIZE] = {0};
+    char x_str[LINE_SIZE] = {0};
+    char y_str[LINE_SIZE] = {0};
 
     rle = fopen(path, "r");
     if (rle == NULL) {
-        fprintf(stderr, "File error on '%s': %s.", path, strerror(errno));
+        fprintf(stderr, "File error on '%s'.", path);
         exit(1);
     }
 
     while (fgets(line, LINE_SIZE, rle)) {
         if (line[0] != '#') {
-            printf("%s", line);
+            for (unsigned int i = 0; i < LINE_SIZE; i++) {
+                if (line[i] == '\n')
+                    break;
+                if (line[i] != ' ') {
+                    save_num_str(&i, 'x', x_str, line);
+                    // save_num_str(&i, 'y', y_str, line);
+                }
+            }
+            printf("x:%s y:%s\n", x_str, y_str);
         }
     }
 
@@ -288,11 +319,12 @@ Grid ImportRle(char path[PATH_SIZE]) {
 
 int main(int argc, char *argv[]) {
     CmdArgs args = ParseArgs(&argc, argv);
+    Grid g = {0};
 
     if (strlen(args.p_path) > 0) {
-        Grid g = ImportRle(args.p_path);
+        g = ImportRle(args.p_path);
     } else {
-        Grid g = RandomGrid(10, 10, 10);
+        g = RandomGrid(10, 10, 10);
     }
     //  Grid g = InitGrid(3, 3, 10,
     //                    (bool[][BOARD_SIZE]){
@@ -301,12 +333,11 @@ int main(int argc, char *argv[]) {
     //                        {1, 1, 1},
     //                    });
 
-    /* uint8_t init_color[3] = {107, 102, 255}; */
-    /* uint8_t bg_color[3] = {178, 190, 181}; */
-    /* EncodeGif(init_color, bg_color, 25, 300, "test.gif", &g); */
-    // PrintGrid(&g, 25);
+    // uint8_t init_color[3] = {107, 102, 255};
+    // uint8_t bg_color[3] = {178, 190, 181};
+    // EncodeGif(init_color, bg_color, 25, 300, "test.gif", &g);
 
-    return EXIT_SUCCESS;
+    return 0;
 }
 // LICENSE
 // Permission is hereby granted, free of charge, to any person obtaining a copy
