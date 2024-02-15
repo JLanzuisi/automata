@@ -335,7 +335,7 @@ int main(int argc, char *argv[]) {
 
     // uint8_t init_color[3] = {107, 102, 255};
     // uint8_t bg_color[3] = {178, 190, 181};
-    // EncodeGif(init_color, bg_color, 25, 300, "test.gif", &g);
+    // EncodeGif(init_color, bg_color, 25, 300, "gifs/test.gif", &g);
 
     return 0;
 }
