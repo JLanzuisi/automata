@@ -11,9 +11,8 @@
 #define BOARD_SIZE 100 // 2d matrix size is the square of this
 #define PATH_SIZE 256
 #define LINE_SIZE 80
-#define PALLETE_SIZE 8
-#define ALIVE 1
-#define DEAD 0
+#define PALETTE_SIZE 8
+#define NEIGHBORS 8
 
 typedef int Board[BOARD_SIZE][BOARD_SIZE];
 
@@ -24,11 +23,12 @@ typedef struct {
 } Grid;
 
 typedef struct {
-    char p_path[PATH_SIZE];
-} CmdArgs;
+    int B[NEIGHBORS];
+    int S[NEIGHBORS];
+} CA;
 
-Grid InitGrid(unsigned int rows, unsigned int cols, unsigned int offset,
-              Board p) {
+Grid init_grid(unsigned int rows, unsigned int cols, unsigned int offset,
+               Board p) {
     Grid g = {offset * 2 + rows, offset * 2 + cols, {0}};
 
     for (unsigned int i = 0; i < g.rows; i++) {
@@ -39,7 +39,7 @@ Grid InitGrid(unsigned int rows, unsigned int cols, unsigned int offset,
                        i > offset - 1 && i < g.rows - offset) {
                 g.grid[i][j] = p[i - offset][j - offset];
             } else {
-                g.grid[i][j] = DEAD;
+                g.grid[i][j] = 0;
             }
         }
     }
@@ -89,7 +89,7 @@ void print_grid_state(Grid *g) {
     }
 }
 
-void next_gen(Grid *g) {
+void next_gen(Grid *g, CA *au) {
     unsigned int count = 0;
     Board nextgen = {0};
 
@@ -98,17 +98,9 @@ void next_gen(Grid *g) {
             count = neighbors(g, i, j);
 
             if (g->grid[i][j]) {
-                if (count != 2 && count != 3) {
-                    nextgen[i][j] = DEAD;
-                } else {
-                    nextgen[i][j] = ALIVE;
-                }
+                nextgen[i][j] = au->S[count];
             } else {
-                if (count == 3) {
-                    nextgen[i][j] = ALIVE;
-                } else {
-                    nextgen[i][j] = DEAD;
-                }
+                nextgen[i][j] = au->B[count];
             }
         }
     }
@@ -120,12 +112,12 @@ void next_gen(Grid *g) {
     }
 }
 
-void PrintGrid(Grid *g, unsigned int generations) {
+void print_grid(Grid *g, CA *au, unsigned int generations) {
     char chars[9] = {'.', '\'', ';', '-', '=', '+', '%', '#', '@'};
     unsigned int count = 0;
 
     for (unsigned int k = 0; k < generations; k++) {
-        next_gen(g);
+        next_gen(g, au);
 
         for (unsigned int i = 0; i < g->rows; i++) {
             for (unsigned int j = 0; j < g->cols; j++) {
@@ -146,8 +138,8 @@ void PrintGrid(Grid *g, unsigned int generations) {
     }
 }
 
-void EncodeGif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
-               unsigned int generations, char filename[], Grid *g) {
+void encode_gif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
+                unsigned int generations, char filename[], Grid *g, CA *au) {
     unsigned int w = g->rows * factor;
     unsigned int h = g->cols * factor;
     unsigned int pindex = 0;
@@ -155,7 +147,7 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
     unsigned int count = 0;
     float color_factor = 0.7f;
 
-    uint8_t palette[PALLETE_SIZE * 3] = {0};
+    uint8_t palette[PALETTE_SIZE * 3] = {0};
 
     palette[0] = bg_color[0];
     palette[1] = bg_color[1];
@@ -163,7 +155,7 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
     palette[3] = init_color[0];
     palette[4] = init_color[1];
     palette[5] = init_color[2];
-    for (int i = 2; i < PALLETE_SIZE; i++) {
+    for (int i = 2; i < PALETTE_SIZE; i++) {
         palette[i * 3] = palette[(i * 3) - 3] * color_factor;
         palette[i * 3 + 1] = palette[(i * 3) - 2] * color_factor;
         palette[i * 3 + 2] = palette[(i * 3) - 1] * color_factor;
@@ -183,7 +175,7 @@ void EncodeGif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
     }
 
     for (unsigned int i = 0; i < generations; i++) {
-        next_gen(g);
+        next_gen(g, au);
 
         for (unsigned int j = 0; j < g->rows; j++) {
             for (unsigned int k = 0; k < g->cols; k++) {
@@ -213,7 +205,7 @@ end:
     ge_close_gif(gif);
 }
 
-Grid RandomGrid(unsigned int rows, unsigned int cols, unsigned int offset) {
+Grid random_grid(unsigned int rows, unsigned int cols, unsigned int offset) {
     Board pattern = {0};
 
     srand(time(NULL));
@@ -224,46 +216,7 @@ Grid RandomGrid(unsigned int rows, unsigned int cols, unsigned int offset) {
         }
     }
 
-    return InitGrid(rows, cols, offset, pattern);
-}
-
-void pop_arg(int *argc, char *argv[]) {
-    if (*argc > 0) {
-        for (int i = 1; i < *argc; i++) {
-            argv[i - 1] = argv[i];
-        }
-        argv[*argc - 1] = "";
-        *argc = *argc - 1;
-    }
-}
-
-CmdArgs ParseArgs(int *argc, char *argv[]) {
-    CmdArgs args = {0};
-
-    pop_arg(argc, argv);
-    while (*argc > 0) {
-        if (strcmp(argv[0], "set-pattern") == 0) {
-            pop_arg(argc, argv);
-            if (*argc > 0) {
-                if (strlen(argv[0]) < PATH_SIZE) {
-                    strcpy(args.p_path, argv[0]);
-                } else {
-                    fprintf(stderr,
-                            "Path provided to 'set-pattern' is too long.\n");
-                    exit(1);
-                }
-            } else {
-                fprintf(stderr, "No path provided to 'set-pattern'.\n");
-                exit(1);
-            }
-            break;
-        } else {
-            fprintf(stderr, "Subcommand '%s' unknown.\n", argv[0]);
-            exit(1);
-        }
-    }
-
-    return args;
+    return init_grid(rows, cols, offset, pattern);
 }
 
 void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
@@ -286,7 +239,7 @@ void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
     }
 }
 
-Grid ImportRle(char path[PATH_SIZE]) {
+Grid import_rle(char path[PATH_SIZE]) {
     FILE *rle;
     char line[LINE_SIZE] = {0};
     char x_str[LINE_SIZE] = {0};
@@ -318,20 +271,27 @@ Grid ImportRle(char path[PATH_SIZE]) {
 }
 
 int main(int argc, char *argv[]) {
-    CmdArgs args = ParseArgs(&argc, argv);
     Grid g = {0};
+    CA GoL = {
+        {0, 0, 0, 1},
+        {0, 0, 1, 1},
+    };
 
-    if (strlen(args.p_path) > 0) {
-        g = ImportRle(args.p_path);
-    } else {
-        g = RandomGrid(10, 10, 10);
-    }
-    //  Grid g = InitGrid(3, 3, 10,
-    //                    (bool[][BOARD_SIZE]){
-    //                        {0, 1, 0},
-    //                        {0, 0, 1},
-    //                        {1, 1, 1},
-    //                    });
+    g = random_grid(10, 10, 10);
+
+    // if (strlen(args.p_path) > 0) {
+    //     g = ImportRle(args.p_path);
+    // } else {
+    //     g = RandomGrid(10, 10, 10);
+    // }
+
+    // g = InitGrid(3, 3, 10,
+    //              (int[BOARD_SIZE][BOARD_SIZE]){
+    //                  {0, 1, 0},
+    //                  {0, 0, 1},
+    //                  {1, 1, 1},
+    //              });
+    // PrintGrid(&g, &GoL, 20);
 
     // uint8_t init_color[3] = {107, 102, 255};
     // uint8_t bg_color[3] = {178, 190, 181};
