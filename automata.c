@@ -239,21 +239,18 @@ void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
         while (line[*idx] != ',') {
             (*idx)++;
             if (isdigit(line[*idx]) != 0) {
-                saved_idx++;
                 saved[saved_idx] = line[*idx];
-                // printf("s:[%c], l:[%c]\n", saved[saved_idx], line[*idx]);
-                // printf("saved: [%s] | line:[%s]\n", saved, line);
-                // printf("idx:%d, count:%d\n", *idx, count);
+                saved_idx++;
             }
         }
     }
 }
 
-Grid import_rle(char path[PATH_SIZE]) {
+Grid import_rle(char *path) {
     FILE *rle;
     char line[LINE_SIZE] = {0};
-    char x_str[LINE_SIZE] = {0};
-    char y_str[LINE_SIZE] = {0};
+    char col_str[LINE_SIZE] = {0};
+    char row_str[LINE_SIZE] = {0};
 
     rle = fopen(path, "r");
     if (rle == NULL) {
@@ -267,45 +264,63 @@ Grid import_rle(char path[PATH_SIZE]) {
                 if (line[i] == '\n')
                     break;
                 if (line[i] != ' ') {
-                    save_num_str(&i, 'x', x_str, line);
-                    // save_num_str(&i, 'y', y_str, line);
+                    save_num_str(&i, 'x', col_str, line);
+                    save_num_str(&i, 'y', row_str, line);
                 }
             }
-            printf("x:%s y:%s\n", x_str, y_str);
+            printf("x:%s y:%s\n", col_str, row_str);
         }
     }
 
     fclose(rle);
 
-    // return InitGrid(rows, cols, offset, pattern);
+    return init_grid(atoi(row_str), atoi(col_str), 2, (Board){0});
 }
 
 int main(int argc, char *argv[]) {
     srand(time(NULL));
 
     Grid g = {0};
-    CA au = {0};
-    // CA gol = {
-    //     {0, 0, 0, 1},
-    //     {0, 0, 1, 1},
-    // };
+    // CA au = {0};
+    CA au = {
+        {0, 0, 0, 1},
+        {0, 0, 1, 1},
+    };
 
-    // g = random_grid(10, 10, 10);
-    au = random_automata();
+    if (argc > 0)
+        c_flags_set_application_name(argv[0]);
 
-    // if (strlen(args.p_path) > 0) {
-    //     g = ImportRle(args.p_path);
-    // } else {
-    //     g = RandomGrid(10, 10, 10);
-    // }
+    c_flags_set_positional_args_description("<file-path>");
+    c_flags_set_description(
+        "A program to demonstrate the capabilities of the c-flags library");
 
-    g = init_grid(3, 3, 10,
-                  (int[BOARD_SIZE][BOARD_SIZE]){
-                      {0, 1, 0},
-                      {0, 0, 1},
-                      {1, 1, 1},
-                  });
-    // PrintGrid(&g, &GoL, 20);
+    bool *help = c_flag_bool("help", "h", "show usage", false);
+    char **rlepath = c_flag_string("path", "p", "Rle file path", NULL);
+
+    c_flags_parse(&argc, &argv, false);
+
+    if (*help) {
+        c_flags_usage();
+        return 0;
+    }
+
+    // printf("%s\n", rlepath[0]);
+
+    // au = random_automata();
+
+    if (*rlepath == NULL) {
+        g = random_grid(10, 10, 10);
+    } else {
+        g = import_rle(rlepath[0]);
+    }
+
+    // g = init_grid(3, 3, 10,
+    //               (int[BOARD_SIZE][BOARD_SIZE]){
+    //                   {0, 1, 0},
+    //                   {0, 0, 1},
+    //                   {1, 1, 1},
+    //               });
+    print_grid(&g, &au, 1);
 
     // uint8_t init_color[3] = {107, 102, 255};
     // uint8_t bg_color[3] = {178, 190, 181};
