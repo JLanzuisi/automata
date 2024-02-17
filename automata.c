@@ -1,6 +1,7 @@
 // cgol.c - conway's game of life.
 // Copyright 2024 Jhonny Lanzuisi.
 // See LICENSE at end of file.
+#include "c-flags.h"
 #include "gifenc.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -208,8 +209,6 @@ end:
 Grid random_grid(unsigned int rows, unsigned int cols, unsigned int offset) {
     Board pattern = {0};
 
-    srand(time(NULL));
-
     for (unsigned int i = 0; i < rows * cols; i++) {
         for (unsigned int j = 0; j < rows * cols; j++) {
             pattern[i][j] = rand() % 2;
@@ -217,6 +216,17 @@ Grid random_grid(unsigned int rows, unsigned int cols, unsigned int offset) {
     }
 
     return init_grid(rows, cols, offset, pattern);
+}
+
+CA random_automata(void) {
+    CA au = {0};
+
+    for (unsigned int j = 0; j < NEIGHBORS; j++) {
+        au.B[j] = rand() % 2;
+        au.S[j] = rand() % 2;
+    }
+
+    return au;
 }
 
 void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
@@ -271,13 +281,17 @@ Grid import_rle(char path[PATH_SIZE]) {
 }
 
 int main(int argc, char *argv[]) {
-    Grid g = {0};
-    CA GoL = {
-        {0, 0, 0, 1},
-        {0, 0, 1, 1},
-    };
+    srand(time(NULL));
 
-    g = random_grid(10, 10, 10);
+    Grid g = {0};
+    CA au = {0};
+    // CA gol = {
+    //     {0, 0, 0, 1},
+    //     {0, 0, 1, 1},
+    // };
+
+    // g = random_grid(10, 10, 10);
+    au = random_automata();
 
     // if (strlen(args.p_path) > 0) {
     //     g = ImportRle(args.p_path);
@@ -285,17 +299,17 @@ int main(int argc, char *argv[]) {
     //     g = RandomGrid(10, 10, 10);
     // }
 
-    // g = InitGrid(3, 3, 10,
-    //              (int[BOARD_SIZE][BOARD_SIZE]){
-    //                  {0, 1, 0},
-    //                  {0, 0, 1},
-    //                  {1, 1, 1},
-    //              });
+    g = init_grid(3, 3, 10,
+                  (int[BOARD_SIZE][BOARD_SIZE]){
+                      {0, 1, 0},
+                      {0, 0, 1},
+                      {1, 1, 1},
+                  });
     // PrintGrid(&g, &GoL, 20);
 
     // uint8_t init_color[3] = {107, 102, 255};
     // uint8_t bg_color[3] = {178, 190, 181};
-    // EncodeGif(init_color, bg_color, 25, 300, "gifs/test.gif", &g);
+    // encode_gif(init_color, bg_color, 25, 300, "gifs/test.gif", &g, &au);
 
     return 0;
 }
