@@ -1,61 +1,70 @@
-// cgol.c - conway's game of life.
+// automata.c - Cellular automata in C.
 // Copyright 2024 Jhonny Lanzuisi.
 // See LICENSE at end of file.
-#include "c-flags.h"
 #include "gifenc.h"
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#define TRUE 1
+#define FALSE 0
 #define BOARD_SIZE 100 // 2d matrix size is the square of this
-#define PATH_SIZE 256
-#define LINE_SIZE 80
-#define PALETTE_SIZE 8
-#define NEIGHBORS 8
+#define RULES 10
+#define STATES 4
+#define COLOR_DEPTH 2
+#define COLORS 4 // should always be COLOR_DEPTH^2
 
 typedef int Board[BOARD_SIZE][BOARD_SIZE];
 
 typedef struct {
-    unsigned int rows;
-    unsigned int cols;
-    Board grid;
+    int rows;
+    int cols;
+    Board board;
 } Grid;
 
 typedef struct {
-    int B[NEIGHBORS];
-    int S[NEIGHBORS];
+    char *code;
+    int next_state;
+} Rule;
+
+typedef struct {
+    int rule_amount;
+    Rule rules[RULES];
+} RuleSet;
+
+typedef struct {
+    int state_amount;
+    RuleSet rules[STATES];
 } CA;
 
-Grid init_grid(unsigned int rows, unsigned int cols, unsigned int offset,
-               Board p) {
-    Grid g = {offset * 2 + rows, offset * 2 + cols, {0}};
+void init_grid(const int offset, const Grid *p, Grid *g) {
+    g->rows = offset * 2 + p->rows;
+    g->cols = offset * 2 + p->cols;
 
-    for (unsigned int i = 0; i < g.rows; i++) {
-        for (unsigned int j = 0; j < g.cols; j++) {
+    for (int i = 0; i < g->rows; i++) {
+        for (int j = 0; j < g->cols; j++) {
             if (offset == 0) {
-                g.grid[i][j] = p[i][j];
-            } else if (j > offset - 1 && j < g.cols - offset &&
-                       i > offset - 1 && i < g.rows - offset) {
-                g.grid[i][j] = p[i - offset][j - offset];
+                g->board[i][j] = p->board[i][j];
+            } else if (j > offset - 1 && j < g->cols - offset &&
+                       i > offset - 1 && i < g->rows - offset) {
+                g->board[i][j] = p->board[i - offset][j - offset];
             } else {
-                g.grid[i][j] = 0;
+                g->board[i][j] = 0;
             }
         }
     }
-
-    return g;
 }
 
-unsigned int neighbors(Grid *g, unsigned int row, unsigned int col) {
-    unsigned int total = 0;
+void neighbors(const Grid *g, const int row, const int col, const int states,
+               char code[]) {
     signed int x, y;
     int deltas[8][2] = {
         {-1, -1}, {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {1, 0}, {1, -1}, {0, -1},
     };
+    int total[STATES] = {0};
 
-    for (unsigned int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
         x = row + deltas[i][0];
         y = col + deltas[i][1];
 
@@ -70,261 +79,188 @@ unsigned int neighbors(Grid *g, unsigned int row, unsigned int col) {
             y = 0;
         };
 
-        if (g->grid[x][y]) {
-            total++;
-        }
+        total[g->board[x][y]]++;
     }
-    return total;
+
+    for (int i = 0; i < states; i++) {
+        code[i] = total[i] + '0';
+    }
+    code[states] = '\0';
 }
 
-void print_grid_state(Grid *g) {
-    for (unsigned int i = 0; i < g->rows; i++) {
-        for (unsigned int j = 0; j < g->cols; j++) {
-            if (g->grid[i][j]) {
-                printf("* ");
+void print_grid_state(const Grid *g) {
+    for (int i = 0; i < g->rows; i++) {
+        for (int j = 0; j < g->cols; j++) {
+            if (g->board[i][j] > 0) {
+                printf("%d ", g->board[i][j]);
             } else {
-                printf("  ");
+                printf("- ");
             }
         }
         printf("\n");
     }
 }
 
-void next_gen(Grid *g, CA *au) {
-    unsigned int count = 0;
-    Board nextgen = {0};
+void next_gen(Grid *curr_grid, Grid *next_grid, const CA *ca) {
+    char code[STATES] = "";
+    Rule rule = {0};
+    RuleSet rset = {0};
+    int found = FALSE;
 
-    for (unsigned int i = 0; i < g->rows; i++) {
-        for (unsigned int j = 0; j < g->cols; j++) {
-            count = neighbors(g, i, j);
+    next_grid->rows = curr_grid->rows;
+    next_grid->cols = curr_grid->cols;
 
-            if (g->grid[i][j]) {
-                nextgen[i][j] = au->S[count];
-            } else {
-                nextgen[i][j] = au->B[count];
-            }
-        }
-    }
+    for (int i = 0; i < next_grid->rows; i++) {
+        for (int j = 0; j < next_grid->cols; j++) {
+            found = FALSE;
+            neighbors(curr_grid, i, j, ca->state_amount, code);
+            rset = ca->rules[curr_grid->board[i][j]];
 
-    for (unsigned int i = 0; i < g->rows; i++) {
-        for (unsigned int j = 0; j < g->cols; j++) {
-            g->grid[i][j] = nextgen[i][j];
-        }
-    }
-}
+            for (int k = 0; k < rset.rule_amount; k++) {
+                rule = rset.rules[k];
 
-void print_grid(Grid *g, CA *au, unsigned int generations) {
-    char chars[9] = {'.', '\'', ';', '-', '=', '+', '%', '#', '@'};
-    unsigned int count = 0;
-
-    for (unsigned int k = 0; k < generations; k++) {
-        next_gen(g, au);
-
-        for (unsigned int i = 0; i < g->rows; i++) {
-            for (unsigned int j = 0; j < g->cols; j++) {
-                if (g->grid[i][j]) {
-                    count = neighbors(g, i, j);
-                    printf("%c ", chars[count]);
-                } else {
-                    printf("  ");
+                if (strcmp(rule.code, code) == 0) {
+                    next_grid->board[i][j] = rule.next_state;
+                    found = TRUE;
+                    break;
                 }
             }
-            printf("\n");
-        }
 
-        for (unsigned int j = 0; j < g->cols; j++) {
-            printf("- ");
+            if (!found) {
+                next_grid->board[i][j] = rset.default_state;
+            }
         }
-        printf("\n");
     }
+
+    memcpy(curr_grid->board, next_grid->board, sizeof next_grid->board);
 }
 
-void encode_gif(uint8_t init_color[], uint8_t bg_color[], unsigned int factor,
-                unsigned int generations, char filename[], Grid *g, CA *au) {
-    unsigned int w = g->rows * factor;
-    unsigned int h = g->cols * factor;
-    unsigned int pindex = 0;
-    unsigned int depth = 3;
-    unsigned int count = 0;
-    float color_factor = 0.7f;
+void encode_gif(const int generations, const char filename[], Grid *g, Grid *n,
+                const CA *ca) {
+    const int w = 800;
+    const int h = 800;
+    int factor = 0;
+    int pindex = 0;
+    int count = 0;
+    int rh = 0;
+    int rw = 0;
 
-    uint8_t palette[PALETTE_SIZE * 3] = {0};
+    uint8_t palette[COLORS * 3] = {178, 190, 181, 107, 102, 255,
+                                   255, 0,   0,   0,   255, 0};
 
-    palette[0] = bg_color[0];
-    palette[1] = bg_color[1];
-    palette[2] = bg_color[2];
-    palette[3] = init_color[0];
-    palette[4] = init_color[1];
-    palette[5] = init_color[2];
-    for (int i = 2; i < PALETTE_SIZE; i++) {
-        palette[i * 3] = palette[(i * 3) - 3] * color_factor;
-        palette[i * 3 + 1] = palette[(i * 3) - 2] * color_factor;
-        palette[i * 3 + 2] = palette[(i * 3) - 1] * color_factor;
-    }
-
-    ge_GIF *gif =
-        ge_new_gif(filename,       /* file name */
-                   w, h,           /* canvas size */
-                   palette, depth, /* palette depth == log2(# of colors) */
-                   -1,             /* no transparency */
-                   0               /* infinite loop */
-        );
+    ge_GIF *gif = ge_new_gif(
+        filename,             /* file name */
+        w, h,                 /* canvas size */
+        palette, COLOR_DEPTH, /* palette depth == log2(# of colors) */
+        -1,                   /* no transparency */
+        0                     /* infinite loop */
+    );
 
     if (gif == NULL) {
         perror("Error generating gif");
         goto end;
     }
 
-    for (unsigned int i = 0; i < generations; i++) {
-        next_gen(g, au);
+    printf("INFO: %d,%d\n", g->cols, g->rows);
 
-        for (unsigned int j = 0; j < g->rows; j++) {
-            for (unsigned int k = 0; k < g->cols; k++) {
-                if (g->grid[j][k] == 1) {
-                    count = neighbors(g, j, k);
-                    if (count == 0) {
-                        pindex = 1;
-                    } else {
-                        pindex = count - 1;
-                    }
-                } else {
-                    pindex = 0;
-                }
-                for (unsigned int l = j * factor; l < (j + 1) * factor; l++) {
-                    for (unsigned int m = k * factor; m < (k + 1) * factor;
-                         m++) {
-                        gif->frame[l * w + m] = pindex;
+    for (int i = 0; i < generations; i++) {
+        factor = w / g->cols;
+
+        for (int row = 0; row < g->rows; row++) {
+            for (int col = 0; col < g->cols; col++) {
+                for (int l = row * factor; l < (row + 1) * factor; l++) {
+                    for (int m = col * factor; m < (col + 1) * factor; m++) {
+                        gif->frame[l * w + m] = g->board[row][col];
                     }
                 }
             }
         }
 
+        next_gen(g, n, ca);
+
         ge_add_frame(gif, 20);
     }
-
 end:
     ge_close_gif(gif);
 }
 
-Grid random_grid(unsigned int rows, unsigned int cols, unsigned int offset) {
-    Board pattern = {0};
+void random_grid(int rows, int cols, int offset, int states, Grid *curr_grid) {
+    Grid pattern = {rows, cols, {0}};
 
-    for (unsigned int i = 0; i < rows * cols; i++) {
-        for (unsigned int j = 0; j < rows * cols; j++) {
-            pattern[i][j] = rand() % 2;
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            pattern.board[i][j] = rand() % states;
         }
     }
 
-    return init_grid(rows, cols, offset, pattern);
+    init_grid(offset, &pattern, curr_grid);
 }
 
-CA random_automata(void) {
-    CA au = {0};
-
-    for (unsigned int j = 0; j < NEIGHBORS; j++) {
-        au.B[j] = rand() % 2;
-        au.S[j] = rand() % 2;
-    }
-
-    return au;
-}
-
-void save_num_str(unsigned int *idx, char c, char saved[LINE_SIZE],
-                  char line[LINE_SIZE]) {
-    unsigned int count = 0;
-    unsigned int saved_idx = 0;
-
-    if (line[*idx] == c) {
-        count = *idx;
-        while (line[*idx] != ',') {
-            (*idx)++;
-            if (isdigit(line[*idx]) != 0) {
-                saved[saved_idx] = line[*idx];
-                saved_idx++;
-            }
-        }
-    }
-}
-
-Grid import_rle(char *path) {
-    FILE *rle;
-    char line[LINE_SIZE] = {0};
-    char col_str[LINE_SIZE] = {0};
-    char row_str[LINE_SIZE] = {0};
-
-    rle = fopen(path, "r");
-    if (rle == NULL) {
-        fprintf(stderr, "File error on '%s'.", path);
-        exit(1);
-    }
-
-    while (fgets(line, LINE_SIZE, rle)) {
-        if (line[0] != '#') {
-            for (unsigned int i = 0; i < LINE_SIZE; i++) {
-                if (line[i] == '\n')
-                    break;
-                if (line[i] != ' ') {
-                    save_num_str(&i, 'x', col_str, line);
-                    save_num_str(&i, 'y', row_str, line);
-                }
-            }
-            printf("x:%s y:%s\n", col_str, row_str);
-        }
-    }
-
-    fclose(rle);
-
-    return init_grid(atoi(row_str), atoi(col_str), 2, (Board){0});
-}
-
-int main(int argc, char *argv[]) {
+int main(void) {
     srand(time(NULL));
 
-    Grid g = {0};
-    // CA au = {0};
-    CA au = {
-        {0, 0, 0, 1},
-        {0, 0, 1, 1},
+    Grid curr_grid = {0};
+    Grid next_grid = {0};
+    // CA ca = {
+    //     2,
+    //     {
+    //         {1, {{"53", 1}}},
+    //         {2, {{"62", 1}, {"53", 1}}},
+    //     },
+    // };
+    // CA ca = {
+    //     2,
+    //     {
+    //         {1, {{"62", 1}}},
+    //         {},
+    //     },
+    // };
+    CA ca = {
+        3,
+        {
+            {7,
+             0,
+             {{"602", 2},
+              {"512", 2},
+              {"422", 2},
+              {"332", 2},
+              {"242", 2},
+              {"152", 2},
+              {"062", 2}}},
+            {
+                0,
+                0,
+                {0},
+            },
+            {
+                0,
+                1,
+                {0},
+            },
+        },
     };
+    // Grid pattern = {
+    //     4,
+    //     4,
+    //     {
+    //         {0, 1, 0, 1},
+    //         {2, 0, 2, 1},
+    //         {2, 0, 1, 0},
+    //         {1, 0, 1, 0},
+    //     },
+    // };
 
-    if (argc > 0)
-        c_flags_set_application_name(argv[0]);
+    // init_grid(10, &pattern, &curr_grid);
 
-    c_flags_set_positional_args_description("<file-path>");
-    c_flags_set_description(
-        "A program to demonstrate the capabilities of the c-flags library");
+    random_grid(15, 15, 5, ca.state_amount, &curr_grid);
 
-    bool *help = c_flag_bool("help", "h", "show usage", false);
-    char **rlepath = c_flag_string("path", "p", "Rle file path", NULL);
+    // print_grid_state(&curr_grid);
 
-    c_flags_parse(&argc, &argv, false);
-
-    if (*help) {
-        c_flags_usage();
-        return 0;
-    }
-
-    // printf("%s\n", rlepath[0]);
-
-    // au = random_automata();
-
-    if (*rlepath == NULL) {
-        g = random_grid(10, 10, 10);
-    } else {
-        g = import_rle(rlepath[0]);
-    }
-
-    // g = init_grid(3, 3, 10,
-    //               (int[BOARD_SIZE][BOARD_SIZE]){
-    //                   {0, 1, 0},
-    //                   {0, 0, 1},
-    //                   {1, 1, 1},
-    //               });
-    print_grid(&g, &au, 1);
+    // print_grid_state(&curr_grid);
 
     // uint8_t init_color[3] = {107, 102, 255};
     // uint8_t bg_color[3] = {178, 190, 181};
-    // encode_gif(init_color, bg_color, 25, 300, "gifs/test.gif", &g, &au);
+    encode_gif(50, "test.gif", &curr_grid, &next_grid, &ca);
 
     return 0;
 }
