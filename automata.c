@@ -10,7 +10,7 @@
 #define TRUE 1
 #define FALSE 0
 #define BOARD_SIZE 100 // 2d matrix size is the square of this
-#define RULES 10
+#define RULES 50
 #define STATES 4
 #define COLOR_DEPTH 2
 #define COLORS 4 // should always be COLOR_DEPTH^2
@@ -30,12 +30,13 @@ typedef struct {
 
 typedef struct {
     int rule_amount;
+	int default_state;
     Rule rules[RULES];
 } RuleSet;
 
 typedef struct {
     int state_amount;
-    RuleSet rules[STATES];
+    RuleSet ruleset[STATES];
 } CA;
 
 void init_grid(const int offset, const Grid *p, Grid *g) {
@@ -114,7 +115,7 @@ void next_gen(Grid *curr_grid, Grid *next_grid, const CA *ca) {
         for (int j = 0; j < next_grid->cols; j++) {
             found = FALSE;
             neighbors(curr_grid, i, j, ca->state_amount, code);
-            rset = ca->rules[curr_grid->board[i][j]];
+            rset = ca->ruleset[curr_grid->board[i][j]];
 
             for (int k = 0; k < rset.rule_amount; k++) {
                 rule = rset.rules[k];
@@ -140,13 +141,8 @@ void encode_gif(const int generations, const char filename[], Grid *g, Grid *n,
     const int w = 800;
     const int h = 800;
     int factor = 0;
-    int pindex = 0;
-    int count = 0;
-    int rh = 0;
-    int rw = 0;
 
-    uint8_t palette[COLORS * 3] = {178, 190, 181, 107, 102, 255,
-                                   255, 0,   0,   0,   255, 0};
+    uint8_t palette[COLORS * 3] = {0, 0, 0, 255, 255, 0, 100, 0, 0, 0, 255, 0};
 
     ge_GIF *gif = ge_new_gif(
         filename,             /* file name */
@@ -160,8 +156,6 @@ void encode_gif(const int generations, const char filename[], Grid *g, Grid *n,
         perror("Error generating gif");
         goto end;
     }
-
-    printf("INFO: %d,%d\n", g->cols, g->rows);
 
     for (int i = 0; i < generations; i++) {
         factor = w / g->cols;
@@ -178,14 +172,17 @@ void encode_gif(const int generations, const char filename[], Grid *g, Grid *n,
 
         next_gen(g, n, ca);
 
-        ge_add_frame(gif, 20);
+        ge_add_frame(gif, 25);
     }
 end:
     ge_close_gif(gif);
 }
 
 void random_grid(int rows, int cols, int offset, int states, Grid *curr_grid) {
-    Grid pattern = {rows, cols, {0}};
+    Grid pattern = {0};
+
+	pattern.rows = rows;
+	pattern.cols = cols;
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
@@ -196,71 +193,84 @@ void random_grid(int rows, int cols, int offset, int states, Grid *curr_grid) {
     init_grid(offset, &pattern, curr_grid);
 }
 
+void init_ruleset(RuleSet *rset, int r_amount, int d_state, char *codes[],
+                  int states[]) {
+    rset->rule_amount = r_amount;
+    rset->default_state = d_state;
+    for (int i = 0; i < rset->rule_amount; i++) {
+        rset->rules[i].code = codes[i];
+        rset->rules[i].next_state = states[i];
+    }
+}
+
+// https://conwaylife.com/wiki/Conway%27s_Game_of_Life
+void GoL(CA *ca) {
+    ca->state_amount = 2;
+
+    init_ruleset(&ca->ruleset[0], 1, 0, (char *[]){"53"}, (int[]){1});
+
+    init_ruleset(&ca->ruleset[1], 2, 0, (char *[]){"62", "53"}, (int[]){1, 1});
+}
+
+// https://conwaylife.com/wiki/OCA:Seeds
+void Seeds(CA *ca) {
+    ca->state_amount = 2;
+
+    init_ruleset(&ca->ruleset[0], 1, 0, (char *[]){"62"}, (int[]){1});
+}
+
+// https://conwaylife.com/wiki/OCA:H-trees
+void HT(CA *ca) {
+    ca->state_amount = 2;
+
+    init_ruleset(&ca->ruleset[0], 1, 0, (char *[]){"71"}, (int[]){1});
+
+    ca->ruleset[1].default_state = 1;
+}
+
+// https://conwaylife.com/wiki/OCA:Serviettes
+void Serv(CA *ca) {
+    ca->state_amount = 2;
+
+    init_ruleset(&ca->ruleset[0], 3, 0, (char *[]){"62", "53", "44"},
+                 (int[]){1, 1, 1});
+}
+
+// https://conwaylife.com/wiki/OCA:Brian%27s_Brain
+void BB(CA *ca) {
+    ca->state_amount = 3;
+
+    init_ruleset(&ca->ruleset[0], 7, 0,
+                 (char *[]){"620", "521", "422", "323", "224", "125", "026"},
+                 (int[]){1, 1, 1, 1, 1, 1, 1});
+
+    ca->ruleset[1].default_state = 2;
+}
+
 int main(void) {
     srand(time(NULL));
 
     Grid curr_grid = {0};
     Grid next_grid = {0};
-    // CA ca = {
-    //     2,
-    //     {
-    //         {1, {{"53", 1}}},
-    //         {2, {{"62", 1}, {"53", 1}}},
-    //     },
-    // };
-    // CA ca = {
-    //     2,
-    //     {
-    //         {1, {{"62", 1}}},
-    //         {},
-    //     },
-    // };
-    CA ca = {
-        3,
-        {
-            {7,
-             0,
-             {{"602", 2},
-              {"512", 2},
-              {"422", 2},
-              {"332", 2},
-              {"242", 2},
-              {"152", 2},
-              {"062", 2}}},
-            {
-                0,
-                0,
-                {0},
-            },
-            {
-                0,
-                1,
-                {0},
-            },
-        },
-    };
+    CA ca = {0};
+
+    BB(&ca);
+
     // Grid pattern = {
-    //     4,
-    //     4,
+    //     3,
+    //     3,
     //     {
-    //         {0, 1, 0, 1},
-    //         {2, 0, 2, 1},
-    //         {2, 0, 1, 0},
-    //         {1, 0, 1, 0},
+    //         {0, 1, 0},
+    //         {1, 1, 2},
+    //         {0, 1, 0},
     //     },
     // };
 
-    // init_grid(10, &pattern, &curr_grid);
+    // init_grid(30, &pattern, &curr_grid);
 
-    random_grid(15, 15, 5, ca.state_amount, &curr_grid);
+    random_grid(25, 25, 20, ca.state_amount, &curr_grid);
 
-    // print_grid_state(&curr_grid);
-
-    // print_grid_state(&curr_grid);
-
-    // uint8_t init_color[3] = {107, 102, 255};
-    // uint8_t bg_color[3] = {178, 190, 181};
-    encode_gif(50, "test.gif", &curr_grid, &next_grid, &ca);
+    encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca);
 
     return 0;
 }
