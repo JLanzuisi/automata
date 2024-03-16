@@ -1,11 +1,11 @@
 // automata.c - Cellular automata in C.
 // Copyright 2024 Jhonny Lanzuisi.
 // See LICENSE at end of file.
-#include "gifenc.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "gifenc.h" // eventually write my own version of this
+#include <stdio.h> //  Use linux open(), etc
+#include <stdlib.h> // Implement simple lgc instead of rand()
+#include <string.h> // Implement simple strcmp()
+#include <time.h> // Use linux timeofday() syscal
 
 #define TRUE 1
 #define FALSE 0
@@ -133,7 +133,7 @@ void next_gen(Grid *curr_grid, Grid *next_grid, const CA *ca) {
         }
     }
 
-    memcpy(curr_grid->board, next_grid->board, sizeof next_grid->board);
+    *curr_grid = *next_grid;
 }
 
 void encode_gif(const int generations, const char filename[], Grid *g, Grid *n,
@@ -180,6 +180,8 @@ end:
 
 void random_grid(int rows, int cols, int offset, int states, Grid *curr_grid) {
     Grid pattern = {0};
+
+    srand(time(NULL));
 
 	pattern.rows = rows;
 	pattern.cols = cols;
@@ -248,13 +250,11 @@ void BB(CA *ca) {
 }
 
 int main(void) {
-    srand(time(NULL));
-
     Grid curr_grid = {0};
     Grid next_grid = {0};
     CA ca = {0};
 
-    BB(&ca);
+    GoL(&ca);
 
     // Grid pattern = {
     //     3,
