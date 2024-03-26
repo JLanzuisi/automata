@@ -1,11 +1,13 @@
 // automata.c - Cellular automata in C.
 // Copyright 2024 Jhonny Lanzuisi.
 // See LICENSE at end of file.
-#include "gifenc.h" // eventually write my own version of this
-#include <stdio.h> //  Use linux open(), etc
-#include <stdlib.h> // Implement simple lgc instead of rand()
-#include <string.h> // Implement simple strcmp()
-#include <time.h> // Use linux timeofday() syscal
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "raylib.h"
+#include "gifenc.c"
 
 #define TRUE 1
 #define FALSE 0
@@ -268,9 +270,30 @@ int main(void) {
 
     // init_grid(30, &pattern, &curr_grid);
 
-    random_grid(25, 25, 20, ca.state_amount, &curr_grid);
+    /* random_grid(25, 25, 20, ca.state_amount, &curr_grid); */
 
-    encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca);
+    /* encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca); */
+
+
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+
+    InitWindow(screenWidth, screenHeight, "raylib [core] example - basic window");
+
+    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        BeginDrawing();
+
+            ClearBackground(RAYWHITE);
+
+            DrawText("Congrats! You created your first window!", 190, 200, 20, BLACK);
+
+        EndDrawing();
+    }
+
+    CloseWindow();        // Close window and OpenGL context
 
     return 0;
 }
