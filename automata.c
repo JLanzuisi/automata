@@ -41,24 +41,6 @@ typedef struct {
     RuleSet ruleset[STATES];
 } CA;
 
-void init_grid(const int offset, const Grid *p, Grid *g) {
-    g->rows = offset * 2 + p->rows;
-    g->cols = offset * 2 + p->cols;
-
-    for (int i = 0; i < g->rows; i++) {
-        for (int j = 0; j < g->cols; j++) {
-            if (offset == 0) {
-                g->board[i][j] = p->board[i][j];
-            } else if (j > offset - 1 && j < g->cols - offset &&
-                       i > offset - 1 && i < g->rows - offset) {
-                g->board[i][j] = p->board[i - offset][j - offset];
-            } else {
-                g->board[i][j] = 0;
-            }
-        }
-    }
-}
-
 void neighbors(const Grid *g, const int row, const int col, const int states,
                char code[]) {
     signed int x, y;
@@ -180,21 +162,17 @@ end:
     ge_close_gif(gif);
 }
 
-void random_grid(int rows, int cols, int offset, int states, Grid *curr_grid) {
-    Grid pattern = {0};
-
+void random_grid(int rows, int cols, int states, Grid *curr_grid) {
     srand(time(NULL));
 
-	pattern.rows = rows;
-	pattern.cols = cols;
+	curr_grid->rows = rows;
+	curr_grid->cols = cols;
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            pattern.board[i][j] = rand() % states;
+            curr_grid->board[i][j] = rand() % states;
         }
     }
-
-    init_grid(offset, &pattern, curr_grid);
 }
 
 void init_ruleset(RuleSet *rset, int r_amount, int d_state, char *codes[],
@@ -258,19 +236,7 @@ int main(void) {
 
     GoL(&ca);
 
-    // Grid pattern = {
-    //     3,
-    //     3,
-    //     {
-    //         {0, 1, 0},
-    //         {1, 1, 2},
-    //         {0, 1, 0},
-    //     },
-    // };
-
-    // init_grid(30, &pattern, &curr_grid);
-
-    /* random_grid(25, 25, 20, ca.state_amount, &curr_grid); */
+    random_grid(25, 25, ca.state_amount, &curr_grid);
 
     /* encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca); */
 
