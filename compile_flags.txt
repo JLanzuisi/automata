@@ -1,0 +1,10 @@
+-Wall
+-Wextra
+-pedantic
+-ggdb
+-I
+raylib-5.0/src
+-L
+raylib-5.0/src
+-lraylib
+-lm
