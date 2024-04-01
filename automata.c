@@ -6,8 +6,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "raylib.h"
 #include "gifenc.c"
+#include "raylib.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -16,6 +16,8 @@
 #define STATES 4
 #define COLOR_DEPTH 2
 #define COLORS 4 // should always be COLOR_DEPTH^2
+#define WIDTH 1280
+#define HEIGHT 720
 
 typedef int Board[BOARD_SIZE][BOARD_SIZE];
 
@@ -40,6 +42,18 @@ typedef struct {
     int state_amount;
     RuleSet ruleset[STATES];
 } CA;
+
+typedef struct {
+    Color bg;
+    Color fg;
+} Colors;
+
+enum GameStates {
+    TitleScreen,
+    Play,
+    Paused,
+    RenderingGif,
+};
 
 void neighbors(const Grid *g, const int row, const int col, const int states,
                char code[]) {
@@ -229,55 +243,158 @@ void BB(CA *ca) {
     ca->ruleset[1].default_state = 2;
 }
 
+void draw_grid(Grid curr_grid, Colors palette, int screen_width,
+               int screen_height, int *square_size, int *y_offset,
+               int *x_offset) {
+    int grid_h_boundary = 0;
+    int grid_v_boundary = 0;
+
+    *x_offset = screen_width * 0.02;
+    grid_h_boundary = (screen_width * 0.7) + *x_offset;
+    grid_v_boundary = screen_height;
+
+    if (grid_v_boundary / curr_grid.rows < grid_h_boundary / curr_grid.cols) {
+        *square_size = grid_v_boundary / curr_grid.rows;
+    } else {
+        *square_size = grid_h_boundary / curr_grid.cols;
+    }
+
+    *y_offset = (screen_height - (*square_size * curr_grid.rows)) / 2;
+
+    for (int i = 0; i < curr_grid.rows; i++) {
+        for (int j = 0; j < curr_grid.cols; j++) {
+            if (curr_grid.board[i][j] == 1) {
+                DrawRectangle((j * *square_size) + *x_offset,
+                              (i * *square_size) + *y_offset, *square_size,
+                              *square_size, palette.fg);
+            } else {
+                DrawRectangleLines((j * *square_size) + *x_offset,
+                                   (i * *square_size) + *y_offset, *square_size,
+                                   *square_size, palette.fg);
+            }
+        }
+    }
+}
+
 int main(void) {
     Grid curr_grid = {0};
     Grid next_grid = {0};
+    Grid initial_grid = {0};
     CA ca = {0};
 
     GoL(&ca);
 
-    random_grid(25, 25, ca.state_amount, &curr_grid);
+    random_grid(15, 25, ca.state_amount, &curr_grid);
+    initial_grid = curr_grid;
 
     /* encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca); */
 
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);
+    InitWindow(WIDTH, HEIGHT, "Automata");
+    const Colors palette = {BLACK, BLUE};
+    int screen_width = GetScreenWidth();
+    int screen_height = GetScreenHeight();
+    int square_size = 0;
+    int grid_y_offset = 0;
+    int grid_x_offset = 0;
+    int mouse_row = 0;
+    int mouse_col = 0;
+    float delta_time = 0.0f;
+    float time_when_pressed = 0.0f;
+    float grid_refresh = 0.5f;
 
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    enum GameStates state;
+    state = Paused;
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - basic window");
+    SetTargetFPS(60); // Set our game to run at 60 frames-per-second
 
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-
-    while (!WindowShouldClose())    // Detect window close button or ESC key
+    while (!WindowShouldClose()) // Detect window close button or ESC key
     {
+        screen_width = GetScreenWidth();
+        screen_height = GetScreenHeight();
+        delta_time += GetFrameTime();
+
         BeginDrawing();
+        ClearBackground(palette.bg);
 
-            ClearBackground(RAYWHITE);
+        switch (state) {
+        case TitleScreen:
+            break;
+        case Paused:
+            draw_grid(curr_grid, palette, screen_width, screen_height,
+                      &square_size, &grid_y_offset, &grid_x_offset);
 
-            DrawText("Congrats! You created your first window!", 190, 200, 20, BLACK);
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+                TraceLog(LOG_DEBUG, "%d, %d",
+                         (GetMouseX() - grid_x_offset) / square_size,
+                         (GetMouseY() - grid_y_offset) / square_size);
 
+                mouse_col = (GetMouseX() - grid_x_offset) / square_size;
+                mouse_row = (GetMouseY() - grid_y_offset) / square_size;
+
+                curr_grid.board[mouse_row][mouse_col] = 1;
+            }
+
+            if (IsKeyReleased(KEY_P)) {
+                state = Play;
+            } else if (IsKeyReleased(KEY_G)) {
+                state = RenderingGif;
+            }
+
+            break;
+        case Play:
+            draw_grid(curr_grid, palette, screen_width, screen_height,
+                      &square_size, &grid_y_offset, &grid_x_offset);
+
+            if (delta_time > grid_refresh) {
+                delta_time = 0.0f;
+                next_gen(&curr_grid, &next_grid, &ca);
+            }
+
+            if (IsKeyReleased(KEY_P)) {
+                state = Paused;
+            } else if (IsKeyReleased(KEY_G)) {
+                state = RenderingGif;
+                time_when_pressed = GetTime();
+            }
+
+            break;
+        case RenderingGif:
+            DrawText("Rendering gif...",
+                     (screen_width / 2) -
+                         MeasureText("Rendering gif...", 30) / 2,
+                     screen_height / 2, 30, palette.fg);
+
+            if (GetTime() > time_when_pressed + 5) {
+                encode_gif(1000, "test.gif", &initial_grid, &next_grid, &ca);
+                state = Paused;
+            }
+
+            break;
+        }
         EndDrawing();
     }
 
-    CloseWindow();        // Close window and OpenGL context
+    CloseWindow(); // Close window and OpenGL context
 
     return 0;
 }
 // LICENSE
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the “Software”), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// “Software”), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
 
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
 
-// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
