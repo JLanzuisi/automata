@@ -9,8 +9,6 @@
 #include "gifenc.c"
 #include "raylib.h"
 
-#define TRUE 1
-#define FALSE 0
 #define BOARD_SIZE 100 // 2d matrix size is the square of this
 #define RULES 50
 #define STATES 4
@@ -25,6 +23,7 @@ typedef struct {
     int rows;
     int cols;
     Board board;
+    bool modified;
 } Grid;
 
 typedef struct {
@@ -34,7 +33,7 @@ typedef struct {
 
 typedef struct {
     int rule_amount;
-	int default_state;
+    int default_state;
     Rule rules[RULES];
 } RuleSet;
 
@@ -48,12 +47,20 @@ typedef struct {
     Color fg;
 } Colors;
 
-enum GameStates {
+typedef enum {
     TitleScreen,
     Play,
     Paused,
     RenderingGif,
-};
+} GameStates;
+
+void clear_board(Board b) {
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            b[i][j] = 0;
+        }
+    }
+}
 
 void neighbors(const Grid *g, const int row, const int col, const int states,
                char code[]) {
@@ -104,14 +111,14 @@ void next_gen(Grid *curr_grid, Grid *next_grid, const CA *ca) {
     char code[STATES] = "";
     Rule rule = {0};
     RuleSet rset = {0};
-    int found = FALSE;
+    bool found = false;
 
     next_grid->rows = curr_grid->rows;
     next_grid->cols = curr_grid->cols;
 
     for (int i = 0; i < next_grid->rows; i++) {
         for (int j = 0; j < next_grid->cols; j++) {
-            found = FALSE;
+            found = false;
             neighbors(curr_grid, i, j, ca->state_amount, code);
             rset = ca->ruleset[curr_grid->board[i][j]];
 
@@ -120,7 +127,7 @@ void next_gen(Grid *curr_grid, Grid *next_grid, const CA *ca) {
 
                 if (strcmp(rule.code, code) == 0) {
                     next_grid->board[i][j] = rule.next_state;
-                    found = TRUE;
+                    found = true;
                     break;
                 }
             }
@@ -179,8 +186,8 @@ end:
 void random_grid(int rows, int cols, int states, Grid *curr_grid) {
     srand(time(NULL));
 
-	curr_grid->rows = rows;
-	curr_grid->cols = cols;
+    curr_grid->rows = rows;
+    curr_grid->cols = cols;
 
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
@@ -276,6 +283,49 @@ void draw_grid(Grid curr_grid, Colors palette, int screen_width,
     }
 }
 
+void DrawTextCentered(char *text, int font_size, int y_offset, Color color,
+                      int swidth, int sheight) {
+    DrawText(text, (swidth / 2) - MeasureText(text, font_size) / 2,
+             sheight / 2 - y_offset, font_size, color);
+}
+
+void check_keyboard_input(GameStates *state, Grid *curr_grid,
+                          Grid *initial_grid, const CA ca) {
+    if (*state == TitleScreen) {
+        if (IsKeyReleased(KEY_ENTER)) {
+            *state = Paused;
+        }
+    } else if (*state == Play) {
+        if (IsKeyReleased(KEY_P)) {
+            *state = Paused;
+        }
+    } else if (*state == Paused) {
+        if (IsKeyReleased(KEY_P)) {
+            if (curr_grid->modified) {
+                *initial_grid = *curr_grid;
+                curr_grid->modified = false;
+            }
+            *state = Play;
+        }
+    }
+    if (*state == Play || *state == Paused) {
+        if (IsKeyReleased(KEY_G)) {
+            *state = RenderingGif;
+        } else if (IsKeyReleased(KEY_T)) {
+            *state = TitleScreen;
+        } else if (IsKeyReleased(KEY_C)) {
+            clear_board(curr_grid->board);
+            *initial_grid = *curr_grid;
+        } else if (IsKeyReleased(KEY_R)) {
+            *curr_grid = *initial_grid;
+        } else if (IsKeyReleased(KEY_N)) {
+            random_grid(curr_grid->rows, curr_grid->cols, ca.state_amount,
+                        curr_grid);
+            *initial_grid = *curr_grid;
+        }
+    }
+}
+
 int main(void) {
     Grid curr_grid = {0};
     Grid next_grid = {0};
@@ -284,10 +334,9 @@ int main(void) {
 
     GoL(&ca);
 
-    random_grid(15, 25, ca.state_amount, &curr_grid);
+    curr_grid.cols = 20;
+    curr_grid.rows = 15;
     initial_grid = curr_grid;
-
-    /* encode_gif(100, "test.gif", &curr_grid, &next_grid, &ca); */
 
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(WIDTH, HEIGHT, "Automata");
@@ -303,8 +352,8 @@ int main(void) {
     float time_when_pressed = 0.0f;
     float grid_refresh = 0.5f;
 
-    enum GameStates state;
-    state = Paused;
+    GameStates state;
+    state = TitleScreen;
 
     SetTargetFPS(60); // Set our game to run at 60 frames-per-second
 
@@ -319,27 +368,39 @@ int main(void) {
 
         switch (state) {
         case TitleScreen:
+            DrawTextCentered("This is automata.c, a visualization tool for "
+                             "cellular automata.",
+                             30, 10, palette.fg, screen_width, screen_height);
+            DrawTextCentered("Press Enter to begin.", 25, -40, palette.fg,
+                             screen_width, screen_height);
+
+            check_keyboard_input(&state, &curr_grid, &initial_grid, ca);
+
             break;
         case Paused:
             draw_grid(curr_grid, palette, screen_width, screen_height,
                       &square_size, &grid_y_offset, &grid_x_offset);
 
-            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+            // TODO: Maybe use CheckCollision*Rec funtions here
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) ||
+                IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
                 TraceLog(LOG_DEBUG, "%d, %d",
                          (GetMouseX() - grid_x_offset) / square_size,
                          (GetMouseY() - grid_y_offset) / square_size);
 
+                curr_grid.modified = true;
+
                 mouse_col = (GetMouseX() - grid_x_offset) / square_size;
                 mouse_row = (GetMouseY() - grid_y_offset) / square_size;
 
-                curr_grid.board[mouse_row][mouse_col] = 1;
+                if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+                    curr_grid.board[mouse_row][mouse_col] = 1;
+                } else {
+                    curr_grid.board[mouse_row][mouse_col] = 0;
+                }
             }
 
-            if (IsKeyReleased(KEY_P)) {
-                state = Play;
-            } else if (IsKeyReleased(KEY_G)) {
-                state = RenderingGif;
-            }
+            check_keyboard_input(&state, &curr_grid, &initial_grid, ca);
 
             break;
         case Play:
@@ -351,19 +412,12 @@ int main(void) {
                 next_gen(&curr_grid, &next_grid, &ca);
             }
 
-            if (IsKeyReleased(KEY_P)) {
-                state = Paused;
-            } else if (IsKeyReleased(KEY_G)) {
-                state = RenderingGif;
-                time_when_pressed = GetTime();
-            }
+            check_keyboard_input(&state, &curr_grid, &initial_grid, ca);
 
             break;
         case RenderingGif:
-            DrawText("Rendering gif...",
-                     (screen_width / 2) -
-                         MeasureText("Rendering gif...", 30) / 2,
-                     screen_height / 2, 30, palette.fg);
+            DrawTextCentered("Rendering gif...", 30, 10, palette.fg,
+                             screen_width, screen_height);
 
             if (GetTime() > time_when_pressed + 5) {
                 encode_gif(1000, "test.gif", &initial_grid, &next_grid, &ca);
