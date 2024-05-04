@@ -308,6 +308,7 @@ void check_keyboard_input(GameStates *state, Grid *curr_grid,
             *state = Play;
         }
     }
+
     if (*state == Play || *state == Paused) {
         if (IsKeyReleased(KEY_G)) {
             *state = RenderingGif;
@@ -368,9 +369,9 @@ int main(void) {
 
         switch (state) {
         case TitleScreen:
-            DrawTextCentered("This is automata.c, a visualization tool for "
-                             "cellular automata.",
-                             30, 10, palette.fg, screen_width, screen_height);
+            DrawTextCentered(
+                "This is a visualization tool for cellular automata.", 30, 10,
+                palette.fg, screen_width, screen_height);
             DrawTextCentered("Press Enter to begin.", 25, -40, palette.fg,
                              screen_width, screen_height);
 
