@@ -356,10 +356,9 @@ int main(void) {
     GameStates state;
     state = TitleScreen;
 
-    SetTargetFPS(60); // Set our game to run at 60 frames-per-second
+    SetTargetFPS(60);
 
-    while (!WindowShouldClose()) // Detect window close button or ESC key
-    {
+    while (!WindowShouldClose()) {
         screen_width = GetScreenWidth();
         screen_height = GetScreenHeight();
         delta_time += GetFrameTime();
@@ -430,7 +429,7 @@ int main(void) {
         EndDrawing();
     }
 
-    CloseWindow(); // Close window and OpenGL context
+    CloseWindow();
 
     return 0;
 }
