@@ -2,4 +2,4 @@
 
 Visualize 2d cellular automata:
 
-![Brian's Brain](test.gif)
+![Demo](demo.png)
